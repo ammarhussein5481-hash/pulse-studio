@@ -17,4 +17,4 @@ echo "== whisper model (large-v3-turbo, ~1.6 GB, cached in ~/.cache/huggingface)
 mkdir -p "$HOME/.local/bin"; ln -sf "$H/venv/bin/pulse-reel" "$HOME/.local/bin/pulse-reel"
 echo
 echo "ready. make sure ~/.local/bin is on your PATH, then:  pulse-reel --help"
-echo "set once in ~/.bashrc:  export PULSE_TOKEN=<your pulse link token>   # to pull session data from pulse.ammarhussein.cloud"
+echo "set once in ~/.bashrc:  export PULSE_URL=https://<your pulse dashboard>  PULSE_TOKEN=<its link token>   # to pull session data"

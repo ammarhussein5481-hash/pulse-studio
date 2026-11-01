@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs ON THE PULSE VPS (inside container whoopdash-garmin, which has the Garmin login and mounts ~/whoop-dash at /work).
+"""Runs ON THE PULSE VPS (inside the Pulse Garmin container, which has the Garmin login and mounts the dashboard folder at /work).
 
 Exports one training session as the data.json Pulse Studio renders from:
   python export_session.py 2026-11-01            -> /work/site/sessions/2026-11-01.json

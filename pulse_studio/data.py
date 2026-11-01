@@ -12,7 +12,8 @@ def fetch(dir: Path, proj: dict, force: bool = False) -> dict:
         src = dir / sess.get("file", "data.json")
         data = json.loads(Path(src).read_text(encoding="utf-8"))
     else:
-        base = os.environ.get("PULSE_URL", "https://pulse.ammarhussein.cloud").rstrip("/")
+        base = os.environ.get("PULSE_URL", "").rstrip("/")
+        if not base: raise SystemExit("set PULSE_URL (your Pulse dashboard, e.g. https://pulse.example.com) or use session.source = \"file\"")
         token = os.environ.get("PULSE_TOKEN", "")
         url = f"{base}/sessions/{sess['date']}-{sess.get('type', 'hyrox')}.json"
         req = urllib.request.Request(url, headers={"Cookie": f"wd_auth={token}"} if token else {})

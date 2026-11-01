@@ -29,7 +29,7 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 `pulse-reel ui` (http://127.0.0.1:8787) edits the same `project.json`; if Ammar is using it, re-read project.json before changing anything and tell him to refresh the page after your edits.
 
 ## Delivery
-`pulse-reel publish <dir> --to mcpagent@srv:/home/mcpagent/whoop-dash/site/share/` (or `PULSE_SHARE`) → link `https://pulse.ammarhussein.cloud/share/<file>`. Curl the link back and ffprobe it before sending; a half-written file once went out.
+`pulse-reel publish <dir>` with `PULSE_SHARE=user@host:/path/` set (Ammar's is the Pulse VPS share folder) → link `<pulse url>/share/<file>`. Curl the link back and ffprobe it before sending; a half-written file once went out.
 
 ## Identity (don't change without asking)
 climbday: transparent overlays only, Anton + Archivo + Noto Kufi Arabic, bone #F4EFE6 / orange #FF5A1E, grain + vignette, @AMMARHUSSEIN, IG safe zones (top 250 px, bottom 340 px), 1080×1920 30 fps H.264 Main no B-frames ~34 MB/60 s.
