@@ -59,5 +59,6 @@ def describe(idx: dict) -> str:
     for s in idx.get("sessions", []):
         t = s.get("total_s") or 0; start = str(s.get("start") or "")[11:16]
         state = f"project {s['project']}" if s.get("project") else ("ready" if s.get("exported") else "not exported yet")
-        lines.append(f"  {s['group']:9s} {s['date']} {start:5s} {s['type']:6s} {int(t // 60)}:{int(t % 60):02d}  {len(s.get('stations', []))} stations  id {s['id']}  {state}")
+        what = f"{s['distance_m'] / 1000:.1f} km" if s.get("distance_m") else (f"{len(s.get('stations', []))} stations" if s["type"] == "hyrox" else "")
+        lines.append(f"  {s['group']:9s} {s['date']} {start:5s} {s['type']:8s} {int(t // 60)}:{int(t % 60):02d}  {what:12s} id {s['id']}  {state}")
     return "\n".join(lines)

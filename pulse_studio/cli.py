@@ -58,7 +58,7 @@ def cmd_timeline(a):
     _, tl = _timeline(a); print(tlmod.describe(tl))
 
 def _page(a, proj, tl):
-    d = datamod.fetch(a.dir, proj); return overlay.write_page(a.dir, proj, d, tl)
+    d = datamod.enrich(a.dir, proj, datamod.fetch(a.dir, proj), tl); return overlay.write_page(a.dir, proj, d, tl)
 
 def cmd_stills(a):
     proj, tl = _timeline(a); _page(a, proj, tl)

@@ -1,6 +1,6 @@
 # Pulse Studio
 
-Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in project.json or `pulse-reel new --budget 90` for longer): your clips + your voice-over + the session's real numbers (Garmin HR second by second, ErgData splits, steps) rendered as transparent overlays in the climbday identity. Runs entirely on an Ubuntu laptop; no GPU needed.
+Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in project.json or `pulse-reel new --budget 90` for longer): your clips + your voice-over + the session's real numbers (Garmin HR second by second, laps, ErgData splits, steps) rendered as transparent overlays in the climbday identity. One workout = one reel: **HYROX**, **running**, **cycling** or **strength** (or any session without data: titles + captions). Runs entirely on an Ubuntu laptop; no GPU needed.
 
 ![frames from the first reel](docs/reel-frames.jpg)
 
@@ -60,13 +60,24 @@ pulse-reel audio    sessions/2026-11-08-hyrox   # remix only (after changing mus
 pulse-reel publish  sessions/2026-11-08-hyrox --to user@host:/var/www/share/   # or set PULSE_SHARE
 ```
 
-On the VPS, `server/export_session.py` (copied to `/work/pulse-studio-server/` inside the Garmin container) exports every new HYROX session and the index the picker reads. Run it from cron every 10 minutes:
+On the VPS, `server/export_session.py` (copied to `/work/pulse-studio-server/` inside the Garmin container) exports every new session — HYROX (watch app) and the last 30 days of Garmin runs, rides and strength sessions — plus the index the picker reads. Run it from cron every 10 minutes:
 
 ```bash
 */10 * * * * docker exec <garmin container> python /work/pulse-studio-server/export_session.py --sync
 ```
 
 By hand: `export_session.py 2026-11-08` (a date) or `export_session.py <activity id>`; `--index` only rewrites the index. A session exported before its Garmin heart rate arrived is re-exported automatically for 3 days.
+
+## Session types
+
+| type | scenes | on screen |
+|---|---|---|
+| HYROX | one per station | station time, erg splits /500 m, reps ring, distance track, HR |
+| Running (outdoor, treadmill) | up to 8 parts of the run (KM 0–3, 3–6 …) | part time, km, pace /km, lap-pace bars; closing: km, minutes, avg HR, kcal |
+| Cycling (road, indoor) | up to 8 parts (KM 0–15 …) | part time, km, km/h, climb, lap bars; closing: km, km/h, metres climbed, kcal |
+| Strength | one per exercise (you name them) | exercise name, HR during that exercise (matched from the clip's shoot time), optional sets × kg in the title; closing: minutes, exercises, avg HR, kcal |
+
+Garmin doesn't record exercise sets unless they're logged on the watch, so strength reels take the exercise list from your scenes.
 
 ## What a scene looks like (project.json)
 

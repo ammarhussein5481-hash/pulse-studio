@@ -116,7 +116,7 @@ async function loadPulse(refresh){
         const day=new Date(s.date+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); const st=String(s.start||'').slice(11,16);
         const act=s.project?`<button class="ghost sm" onclick="pickOpen('${esc(s.project)}')">Open</button><button class="ghost sm" onclick="pickPulse('${esc(s.id)}')">another reel</button>`
           :s.exported?`<button class="sm" onclick="pickPulse('${esc(s.id)}')">Create</button>`:`<span class="pill">exporting… (every 10 min)</span>`;
-        return `<div class="prow ${s.exported||s.project?'':'off'}"><b>${day}</b><span class="pill or">${esc(s.type)}</span><span>${st}</span><span>${fmt(s.total_s||0)}</span><span class="hint">${(s.stations||[]).length} stations${s.exported&&!s.hr?' · HR pending':''}</span><span style="flex:1"></span>${act}</div>`}).join('')).join('')||'<p class="hint">no sessions in the Pulse index yet</p>';}
+        return `<div class="prow ${s.exported||s.project?'':'off'}"><b>${day}</b><span class="pill or">${esc(s.type)}</span><span>${st}</span><span>${fmt(s.total_s||0)}</span><span class="hint">${s.distance_m?(s.distance_m/1000).toFixed(1)+' km':s.type==='hyrox'?(s.stations||[]).length+' stations':(s.name||'')}${s.exported&&!s.hr?' · HR pending':''}</span><span style="flex:1"></span>${act}</div>`}).join('')).join('')||'<p class="hint">no sessions in the Pulse index yet</p>';}
   catch(e){$('pulselist').innerHTML=`<p class="warn">Pulse list unavailable: ${esc(e.message)}</p><p class="hint">Use a manual date below.</p>`}
 }
 async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pulse_id:id,budget:+$('mbudget').value||60})); $('newdlg').close(); await loadSessions(); await openSession(r.id); run('data')}catch(e){alert(e.message)}}
@@ -129,7 +129,9 @@ async function delSession(){if(!confirm(`Delete ${SID} and everything in it (cli
   try{clearTimeout(saveT); await api('/api/s/'+SID,{method:'DELETE'}); SID=null; S=null; $('main').innerHTML='<div class="empty">Pick a session or create one.</div>'; loadSessions(); toast('session deleted')}catch(e){alert(e.message)}}
 
 const HYROX=['skierg','row','farmers','lunges','wall_balls','burpee_bj','sled_push','run'];
-function stationKeys(){const d=S.data||{}; let o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); if(d._session&&d._session.none&&S.project.session.type==='hyrox') o=[...new Set([...o,...HYROX])]; return ['intro','warmup',...o,'closing']}
+const LIFTS=['squat','bench_press','deadlift','overhead_press','barbell_row','pull_up','lunges','hip_thrust','core'];
+function stationKeys(){const d=S.data||{}; let o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); if(d._session&&d._session.none&&S.project.session.type==='hyrox') o=[...new Set([...o,...HYROX])];
+  if(S.project.session.type==='strength') o=[...new Set([...o,...LIFTS])]; return ['intro','warmup',...o,'closing']}
 function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
 
 function render(){
@@ -240,7 +242,9 @@ function addScene(){const k=stationKeys().find(k=>!p().scenes.some(s=>s.key===k)
 function del(i){if(confirm('remove scene '+sc(i).key+'?')){p().scenes.splice(i,1); selScene=Math.max(0,selScene-1); save()}}
 function move(i,d){const a=p().scenes; const j=i+d; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; selScene=j; save()}
 function useClip(f){if(!p().scenes.length) addScene(); sc(selScene).clip=f; save()}
-function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return; v.file=name; delete v.windows;
+function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
+  if(selWord==null&&(v.from!=null||v.windows||v.file!==name)&&!confirm(`Change ${sc(selScene).key}'s voice-over window? (it is set already)`)) return;
+  v.file=name; delete v.windows;
   if(selWord==null||v.from==null||s<v.from){v.from=s;delete v.to;selWord=s}else{v.to=e;selWord=null} save()}
 let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
