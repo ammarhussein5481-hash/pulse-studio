@@ -203,12 +203,19 @@ CLAUDE_SYS = ("You are running headless from the Pulse Studio web UI; Ammar read
               "contact sheet and report the out/ version and what changed at the end. Ammar asked for English in this app: always reply in English, short, "
               "even if other settings say otherwise (captions stay his Arabic).")
 
+# Opus for the judgment-heavy first edit (shots from contact sheets, Sudanese-Arabic captions); Sonnet for revisions/publish
+HEAVY = re.compile(r"set ?up|from scratch|new session|\bv1\b", re.I)
+def _model(text: str) -> str:
+    return os.environ.get("PULSE_AI_MODEL") or ("claude-opus-5-5" if HEAVY.search(text) else "claude-sonnet-5-5")
+
 def _claude_fmt(sess_file: Path):
+    seen = {}
     def fmt(line: str) -> list[str]:
         try: ev = json.loads(line)
         except ValueError: return [line] if line.strip() else []
         if ev.get("session_id"): sess_file.write_text(ev["session_id"])
         t = ev.get("type")
+        if t == "system" and ev.get("model"): seen["model"] = ev["model"]
         if t == "assistant":
             out = []
             for c in ev.get("message", {}).get("content", []):
@@ -222,7 +229,10 @@ def _claude_fmt(sess_file: Path):
             return [f"  ! {str(c.get('content'))[:200]}" for c in ev.get("message", {}).get("content", [])
                     if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error")]
         if t == "result":
-            return [f"— {ev.get('num_turns', '?')} turns · {round(ev.get('duration_ms', 0) / 60000, 1)} min —"]
+            u = ev.get("usage") or {}; tin = sum(u.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+            cost = ev.get("total_cost_usd")
+            return [f"— {ev.get('num_turns', '?')} turns · {round(ev.get('duration_ms', 0) / 60000, 1)} min · {seen.get('model', '?')} · "
+                    f"{tin // 1000}k in / {(u.get('output_tokens') or 0) // 1000}k out tokens{f' · ${cost:.2f} (API price)' if cost is not None else ''} —"]
         return []
     return fmt
 
@@ -237,7 +247,7 @@ async def ask_claude(sid: str, req: Request):
     sess_file = d / "build" / "claude_session"; sess_file.parent.mkdir(exist_ok=True)
     if j.get("new"): sess_file.unlink(missing_ok=True)
     rel = d.relative_to(REPO) if d.is_relative_to(REPO) else d
-    cmd = [claude, "-p", f"/reel {text}\n\n(session folder: {rel})", "--output-format", "stream-json", "--verbose",
+    cmd = [claude, "-p", f"/reel {text}\n\n(session folder: {rel})", "--model", _model(text), "--output-format", "stream-json", "--verbose",
            "--permission-mode", "acceptEdits", "--allowedTools", *CLAUDE_TOOLS, "--add-dir", str(d), "--settings", json.dumps({"language": "english"}), "--append-system-prompt", CLAUDE_SYS]
     if sess_file.exists() and sess_file.read_text().strip(): cmd += ["--resume", sess_file.read_text().strip()]
     long = {"BASH_DEFAULT_TIMEOUT_MS": "2700000", "BASH_MAX_TIMEOUT_MS": "2700000"}   # a build must fit in one foreground command

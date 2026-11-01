@@ -23,7 +23,7 @@ echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link toke
 
 **Web app** — `pulse-reel ui` opens http://127.0.0.1:8787 : pick a Pulse session, drop the camera files and voice recording (or record the voice-over in the browser), and either let the **Assistant** panel do the editing or do it yourself (pick a clip and the transcript words for each scene, fix captions), then run stills/build with a live log, play the result and publish. Everything it does is the same CLI steps underneath, so you can mix both.
 
-**The Assistant panel / Claude Code** — the web app's Assistant panel currently runs headless `claude -p "/reel …"` on the open session (it needs the `claude` CLI logged in); or open `claude` in this folder and type `/reel` to drive the same project.json and commands conversationally ("the sled shot starts from here", "raise the music").
+**The Assistant panel / Claude Code** — the web app's Assistant panel currently runs headless `claude -p "/reel …"` on the open session (it needs the `claude` CLI logged in; it uses Opus 5.5 for setting up scenes and Sonnet 5.5 for revisions and publishing — `PULSE_AI_MODEL` forces one — and the log's last line shows the model, tokens and cost of each request); or open `claude` in this folder and type `/reel` to drive the same project.json and commands conversationally ("the sled shot starts from here", "raise the music").
 
 ## A new session in the web app, step by step
 
