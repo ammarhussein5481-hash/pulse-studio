@@ -1,0 +1,183 @@
+{
+ "name": "hyrox-2026-11-01",
+ "identity": "climbday",
+ "session": {
+  "date": "2026-11-01",
+  "type": "hyrox",
+  "source": "pulse"
+ },
+ "vo": {
+  "main": "vo/Hyrox.m4a",
+  "extra": {
+   "warmup": "vo/Warmup.m4a"
+  },
+  "language": "ar",
+  "dialect_hint": "تمرين هايروكس. سكي إيرق، تجديف، فارمرز كاري، لانجز، وول بولز، بيربي، سلد بوش، جري، تريدميل. بالعامية السودانية.",
+  "tempo_max": 1.15,
+  "budget_s": 60
+ },
+ "audio": {
+  "music": true,
+  "music_db": -5,
+  "sfx": true,
+  "sfx_db": -7,
+  "amb_db": -4,
+  "duck_threshold": 0.02,
+  "duck_ratio": 6
+ },
+ "scenes": [
+  {
+   "key": "intro",
+   "clip": "PC000378.mov",
+   "in": 0.5,
+   "crop": "auto",
+   "amb_db": -90,
+   "vo": {
+    "file": "main",
+    "from": 0,
+    "to": 4.0
+   },
+   "caption": "السلام عليكم. اليوم الأحد، يوم الهايروكس. بسم الله نبدأ."
+  },
+  {
+   "key": "warmup",
+   "clip": "PC000381.mov",
+   "in": 46,
+   "crop": "full",
+   "amb_db": -9,
+   "vo": {
+    "file": "warmup"
+   },
+   "caption": "قبل أي حاجة، تسخين خفيف خمسة دقايق، وبعدين نبدأ."
+  },
+  {
+   "key": "skierg",
+   "clip": "PC000383.mov",
+   "in": 2,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 5.44,
+    "to": 10.26
+   },
+   "caption": "أول حاجة سكي إيرق، ألف متر. أربع دقايق وست ثواني."
+  },
+  {
+   "key": "row",
+   "clip": "PC000390.mov",
+   "in": 0.5,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 11.14,
+    "to": 17.82
+   },
+   "caption": "بعده التجديف، ألف متر. تلاتة دقايق وتمانية وخمسين."
+  },
+  {
+   "key": "farmers",
+   "clip": "PC000392.mov",
+   "in": 1.5,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 20.64,
+    "to": 24.63
+   },
+   "caption": "بعده الفارمرز كاري. الإيدين بتقول خلاص، لكن ماشين."
+  },
+  {
+   "key": "lunges",
+   "clip": "PC000393.mov",
+   "in": 0.3,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 26.77,
+    "to": 30.83
+   },
+   "caption": "بعده اللانجز بالساندباق. سبع دقايق وشوية."
+  },
+  {
+   "key": "wall_balls",
+   "clip": "PC000396.mov",
+   "in": 9,
+   "crop": "auto",
+   "amb_db": -2,
+   "vo": {
+    "file": "main",
+    "from": 34.12,
+    "to": 39.82
+   },
+   "caption": "بعده الوول بولز، مية كورة. هنا النبض رفع وطلع مية خمسة وأربعين."
+  },
+  {
+   "key": "burpee_bj",
+   "clip": "PC000398.mov",
+   "in": 10,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 41.18,
+    "to": 45.24
+   },
+   "caption": "بعده البيربيز، سبع دقايق."
+  },
+  {
+   "key": "sled_push",
+   "clip": "PC000400.mov",
+   "in": 18.5,
+   "crop": "full",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 52.22,
+    "to": 56.76
+   },
+   "caption": "سلد بوش، عشرة دقايق كاملة. تقيل، لكن متحركين."
+  },
+  {
+   "key": "run",
+   "clip": "PC000404.mov",
+   "in": 3,
+   "crop": "auto",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "from": 59.1,
+    "to": 64.28
+   },
+   "caption": "وآخر حاجة جري، كيلو ونص على التريدميل. والنبض وصل مية وتسعة وخمسين."
+  },
+  {
+   "key": "closing",
+   "clip": "PC000381.mov",
+   "in": 68,
+   "crop": "full",
+   "amb_db": -9,
+   "vo": {
+    "file": "main",
+    "windows": [
+     [
+      67.82,
+      70.14
+     ],
+     [
+      71.1,
+      73.0
+     ],
+     [
+      73.46,
+      74.9
+     ]
+    ]
+   },
+   "caption": "أربعة وسبعين دقيقة، تمن محطات. الأرقام كلها من ساعة قارمن ومن تطبيق نبض."
+  }
+ ]
+}
