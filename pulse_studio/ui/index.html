@@ -65,6 +65,9 @@ td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
 .hint{color:var(--mute);font-size:12px} .warn{color:var(--warn)}
 .empty{padding:60px;text-align:center;color:var(--mute)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px} @media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+dialog{background:var(--bg2);color:var(--bone);border:1px solid var(--line);border-radius:10px;padding:18px 20px;width:min(760px,94vw);max-height:86vh;overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.6)} .grp{font-size:14px;color:var(--mute);margin:14px 0 6px}
+.prow{display:flex;gap:10px;align-items:center;padding:7px 8px;border-top:1px solid var(--line)} .prow.off{opacity:.5}
 .claude textarea{flex:1;min-height:52px;resize:vertical}
 .rec{width:12px;height:12px;border-radius:50%;background:#e33;display:inline-block;animation:p 1s infinite}
 </style>
@@ -79,6 +82,13 @@ td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
   <div id="sessions"></div>
   <p class="hint" style="margin-top:20px" id="root"></p>
 </aside>
+<dialog id="newdlg"><h2>New session</h2>
+  <div id="pulselist"></div>
+  <div class="row" style="margin-top:10px"><button class="ghost sm" onclick="loadPulse(true)">Refresh</button><span style="flex:1"></span><label class="hint">Length <input type="number" id="mbudget" value="60"> s</label></div>
+  <h3 class="grp">Manual</h3>
+  <div class="row"><input type="date" id="mdate"><input id="mtype" value="hyrox" style="width:90px" title="hyrox / run / ride …"><label class="hint"><input type="checkbox" id="mnodata"> no Pulse data (titles + captions only)</label><span style="flex:1"></span><button class="sm" onclick="pickManual()">Create</button></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="ghost sm" onclick="$('newdlg').close()">Cancel</button></div>
+</dialog>
 <main id="main"><div class="empty">Pick a session or create one.</div></main>
 </div>
 <div class="log" id="log"><div class="bar"><span id="logtitle"></span><span id="logstate" class="pill"></span><span style="flex:1"></span><button class="ghost sm" onclick="stopJob()">Stop</button><button class="ghost sm" onclick="$('log').classList.remove('open')">Hide</button></div><pre id="logpre"></pre></div>
@@ -96,15 +106,28 @@ async function loadSessions(){
   $('sessions').innerHTML=r.sessions.map(s=>`<a class="sess ${s.id===SID?'on':''}" onclick="open('${s.id}')">${esc(s.id)}<small>${s.scenes} scenes · ${s.outs} builds</small></a>`).join('')||'<p class="hint">no sessions yet</p>';
 }
 async function newSession(){
-  const date=prompt('Session date (YYYY-MM-DD)',new Date().toISOString().slice(0,10)); if(!date) return;
-  const type=prompt('Type (hyrox / run / ride …)','hyrox'); if(!type) return;
-  const budget=prompt('Target length in seconds','60');
-  try{const r=await api('/api/sessions',J('POST',{date,type,budget:+budget||60})); await loadSessions(); open(r.id)}catch(e){alert(e.message)}
+  const dlg=$('newdlg'); dlg.showModal(); $('pulselist').innerHTML='<p class="hint">loading Pulse sessions …</p>';
+  $('mdate').value=new Date().toISOString().slice(0,10); loadPulse(false);
 }
+async function loadPulse(refresh){
+  try{const r=await api('/api/pulse/sessions'+(refresh?'?refresh=1':'')); const g={Today:[],Yesterday:[],Earlier:[]}; r.sessions.forEach(s=>g[s.group].push(s));
+    $('pulselist').innerHTML=(r.stale?`<p class="warn">offline — showing the last list (${esc(r.generated)})</p>`:`<p class="hint">Pulse index ${esc((r.generated||'').slice(0,16).replace('T',' '))}</p>`)+
+      Object.entries(g).filter(([,v])=>v.length).map(([k,v])=>`<h3 class="grp">${k}</h3>`+v.slice(0,k==='Earlier'?14:9).map(s=>{
+        const day=new Date(s.date+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); const st=String(s.start||'').slice(11,16);
+        const act=s.project?`<button class="ghost sm" onclick="pickOpen('${esc(s.project)}')">Open</button><button class="ghost sm" onclick="pickPulse('${esc(s.id)}')">another reel</button>`
+          :s.exported?`<button class="sm" onclick="pickPulse('${esc(s.id)}')">Create</button>`:`<span class="pill">exporting… (every 10 min)</span>`;
+        return `<div class="prow ${s.exported||s.project?'':'off'}"><b>${day}</b><span class="pill or">${esc(s.type)}</span><span>${st}</span><span>${fmt(s.total_s||0)}</span><span class="hint">${(s.stations||[]).length} stations${s.exported&&!s.hr?' · HR pending':''}</span><span style="flex:1"></span>${act}</div>`}).join('')).join('')||'<p class="hint">no sessions in the Pulse index yet</p>';}
+  catch(e){$('pulselist').innerHTML=`<p class="warn">Pulse list unavailable: ${esc(e.message)}</p><p class="hint">Use a manual date below.</p>`}
+}
+async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pulse_id:id,budget:+$('mbudget').value||60})); $('newdlg').close(); await loadSessions(); await open(r.id); run('data')}catch(e){alert(e.message)}}
+function pickOpen(id){$('newdlg').close(); open(id)}
+async function pickManual(){const date=$('mdate').value, type=$('mtype').value||'hyrox', nodata=$('mnodata').checked;
+  try{const r=await api('/api/sessions',J('POST',{date,type,budget:+$('mbudget').value||60,no_data:nodata})); $('newdlg').close(); await loadSessions(); await open(r.id); if(!nodata) run('data')}catch(e){alert(e.message)}}
 async function open(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions()}
 async function refresh(){if(SID){S=await api('/api/s/'+SID); render()}}
 
-function stationKeys(){const d=S.data||{}; const o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); return ['intro','warmup',...o,'closing']}
+const HYROX=['skierg','row','farmers','lunges','wall_balls','burpee_bj','sled_push','run'];
+function stationKeys(){const d=S.data||{}; let o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); if(d._session&&d._session.none&&S.project.session.type==='hyrox') o=[...new Set([...o,...HYROX])]; return ['intro','warmup',...o,'closing']}
 function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
 
 function render(){
@@ -150,7 +173,7 @@ function render(){
   </section>
   </div>
 
-  <section><h2>Session data ${d?`<span class="pill">${esc(d._session?.date)} · ${fmt(d._session?.total_s||0)} · avg ${d._session?.avg_hr} bpm · ${d._session?.kcal} kcal</span>`:'<span class="pill">not fetched</span>'}</h2>
+  <section><h2>Session data ${d&&d._session?.none?'<span class="pill">none · titles + captions only</span>':d?`<span class="pill">${esc(d._session?.date)} · ${fmt(d._session?.total_s||0)} · avg ${d._session?.avg_hr} bpm · ${d._session?.kcal} kcal</span>`:'<span class="pill">not fetched</span>'}</h2>
     ${d?`<table><tr><th>key</th><th>station</th><th>time</th><th>HR avg/max</th><th>steps</th><th>m</th><th>erg</th></tr>
       ${stationKeys().filter(k=>d[k]).map(k=>{const x=d[k];return `<tr><td>${k}</td><td>${esc(x.station)}</td><td>${fmt(x.s)}</td><td>${x.hr}/${x.max}</td><td>${x.steps??''}</td><td>${x.m??''}</td><td>${x.erg?`${x.erg[1]}/500m · ${x.erg[2]} spm`:''}</td></tr>`}).join('')}</table>`:'<p class="hint">run <b>2 · Data</b> (needs PULSE_TOKEN, or set Data = file and put data.json in the session folder)</p>'}
   </section>

@@ -1,8 +1,9 @@
 """pulse-reel — build a 9:16 story (60 s by default, --budget to change) from a training session: clips + voice-over + Pulse data.
 
-  pulse-reel new <dir> --date 2026-11-01 --type hyrox      create project.json + folders (put clips in raw/, voice in vo/)
+  pulse-reel sessions [--refresh] [--json] [--root sessions] Pulse sessions (today / yesterday / earlier) from the VPS index
+  pulse-reel new <dir> --from-pulse <id>                   project for that Pulse session (or --date D --type T [--no-data])
   pulse-reel ingest <dir>                                   list clips by shoot time, motion profile, contact sheets (build/sheet_*.jpg)
-  pulse-reel data <dir> [--force]                           fetch session data from Pulse (needs PULSE_TOKEN) or local file
+  pulse-reel data <dir> [--force]                           fetch session data from Pulse (needs PULSE_URL/PULSE_TOKEN), a local file, or none
   pulse-reel stt <dir> [--force]                            transcribe vo files with word timestamps → build/stt_*.json
   pulse-reel timeline <dir>                                 scenes → timeline.json (prints timing and tempo)
   pulse-reel stills <dir> [t1,t2,...]                       overlay QA stills → build/stills/
@@ -14,16 +15,25 @@
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
 from pathlib import Path
-from . import project, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix
+from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix
 
 def _latest_version(outdir: Path, name: str) -> int:
     vs = [int(p.stem.rsplit("-v", 1)[1]) for p in outdir.glob(f"{name}-v*.mp4") if p.stem.rsplit("-v", 1)[1].isdigit()]
     return max(vs) if vs else 0
 
+def cmd_sessions(a):
+    idx = pulse.sessions(Path(a.root), refresh=a.refresh)
+    print(json.dumps(idx, ensure_ascii=False) if a.json else pulse.describe(idx))
+
 def cmd_new(a):
-    d = project.new(a.dir, a.name or Path(a.dir).name, a.date, a.type)
-    if a.budget:
-        pj = project.load(a.dir); pj["vo"]["budget_s"] = a.budget; project.save(a.dir, pj)
+    if (Path(a.dir) / "project.json").exists(): raise SystemExit(f"{a.dir} already has a project.json")
+    if a.from_pulse: project.new_from_pulse(a.dir, a.name or Path(a.dir).name, pulse.find(a.from_pulse))
+    elif a.date: project.new(a.dir, a.name or Path(a.dir).name, a.date, a.type)
+    else: raise SystemExit("give --from-pulse <id> (see: pulse-reel sessions) or --date YYYY-MM-DD")
+    pj = project.load(a.dir)
+    if a.budget: pj["vo"]["budget_s"] = a.budget
+    if a.no_data: pj["session"]["source"] = "none"
+    project.save(a.dir, pj)
     print(f"created {a.dir}/project.json — add clips to raw/, voice-over to vo/, then: pulse-reel ingest {a.dir}")
 
 def cmd_ingest(a):
@@ -94,7 +104,8 @@ def main(argv=None):
         from .ui.server import main as ui_main; return ui_main(argv[1:])
     ap = argparse.ArgumentParser(prog="pulse-reel", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    p = sp.add_parser("new"); p.add_argument("dir"); p.add_argument("--date", required=True); p.add_argument("--type", default="hyrox"); p.add_argument("--name"); p.add_argument("--budget", type=float, help="target length in seconds (default 60)"); p.set_defaults(f=cmd_new)
+    p = sp.add_parser("sessions"); p.add_argument("--refresh", action="store_true"); p.add_argument("--json", action="store_true"); p.add_argument("--root", default=os.environ.get("PULSE_SESSIONS", "sessions")); p.set_defaults(f=cmd_sessions)
+    p = sp.add_parser("new"); p.add_argument("dir"); p.add_argument("--from-pulse", metavar="ID"); p.add_argument("--date"); p.add_argument("--type", default="hyrox"); p.add_argument("--no-data", action="store_true", help="no Pulse numbers: titles + captions only"); p.add_argument("--name"); p.add_argument("--budget", type=float, help="target length in seconds (default 60)"); p.set_defaults(f=cmd_new)
     p = sp.add_parser("ingest"); p.add_argument("dir"); p.add_argument("--no-sheets", action="store_true"); p.set_defaults(f=cmd_ingest)
     p = sp.add_parser("data"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_data)
     p = sp.add_parser("stt"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_stt)

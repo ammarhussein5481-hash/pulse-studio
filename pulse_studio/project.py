@@ -6,7 +6,7 @@ from pathlib import Path
 TEMPLATE = {
     "name": "session",
     "identity": "climbday",
-    "session": {"date": "", "type": "hyrox", "source": "pulse"},  # source: pulse | file
+    "session": {"date": "", "type": "hyrox", "source": "pulse"},  # source: pulse | file | none (no numbers); pulse sessions also carry id + file
     "vo": {"main": "vo/main.m4a", "extra": {}, "language": "ar", "dialect_hint": "", "tempo_max": 1.15, "budget_s": 60},
     "audio": {"music": True, "music_db": -5, "sfx": True, "sfx_db": -7, "amb_db": -4, "duck_threshold": 0.02, "duck_ratio": 6},
     "scenes": [],
@@ -45,3 +45,8 @@ def new(dir: Path, name: str, date: str, kind: str) -> dict:
         (dir / sub).mkdir(exist_ok=True)
     d = json.loads(json.dumps(TEMPLATE)); d["name"] = name; d["session"] = {"date": date, "type": kind, "source": "pulse"}
     save(dir, d); return d
+
+def new_from_pulse(dir: Path, name: str, s: dict) -> dict:
+    """Project for one Pulse session (an entry of the VPS index.json)."""
+    d = new(dir, name, s["date"], s["type"])
+    d["session"].update(id=s["id"], file=s["file"], start=s.get("start"), total_s=s.get("total_s")); save(dir, d); return d

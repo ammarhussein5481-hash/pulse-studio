@@ -7,7 +7,7 @@ import json, os, re, shutil, subprocess, sys, threading, time, uuid, webbrowser
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from .. import project, config
+from .. import project, config, pulse, data as datamod
 from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
@@ -61,7 +61,7 @@ def _state(d: Path) -> dict:
     vo = sorted(f.name for f in (d / "vo").glob("*") if f.suffix.lower() in VO_EXT)
     stt = {f.stem[4:]: _jload(f) for f in b.glob("stt_*.json")}
     stills = sorted(f.name for f in (b / "stills").glob("*.png")) if (b / "stills").exists() else []
-    data = _jload(b / "data.json")
+    data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
             "outs": _latest(d / "out", proj["name"]), "frames": (b / "frames").exists(),
@@ -88,15 +88,36 @@ def sessions():
                         "scenes": len(pj.get("scenes", [])), "outs": len(list((d / "out").glob("*.mp4")))})
     return {"root": str(ROOT), "sessions": out, "job": CURRENT.id if CURRENT and CURRENT.running else None}
 
+@app.get("/api/pulse/sessions")
+def pulse_sessions(refresh: bool = False):
+    try: return pulse.sessions(ROOT, refresh=refresh)
+    except SystemExit as e: raise HTTPException(502, str(e))
+    except Exception as e: raise HTTPException(502, f"Pulse unreachable: {e}")
+
+def _free_sid(base: str, alt: str) -> str:
+    if not (ROOT / base).exists(): return base
+    for sid in (f"{base}-{alt}", *(f"{base}-{i}" for i in range(2, 50))):
+        if not (ROOT / sid).exists(): return sid
+    raise HTTPException(409, f"{base} exists")
+
 @app.post("/api/sessions")
 async def new_session(req: Request):
-    j = await req.json(); date = j.get("date", ""); kind = j.get("type", "hyrox"); budget = j.get("budget")
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date): raise HTTPException(400, "date must be YYYY-MM-DD")
-    sid = f"{date}-{re.sub(r'[^a-z0-9]+', '-', kind.lower())}"; d = ROOT / sid
-    if (d / "project.json").exists(): raise HTTPException(409, f"{sid} exists")
-    project.new(d, sid, date, kind)
-    if budget:
-        pj = project.load(d); pj["vo"]["budget_s"] = float(budget); project.save(d, pj)
+    j = await req.json(); budget = j.get("budget")
+    if j.get("pulse_id"):
+        try: s = pulse.find(str(j["pulse_id"]))
+        except SystemExit as e: raise HTTPException(404, str(e))
+        sid = _free_sid(f"{s['date']}-{s['type']}", (str(s.get("start") or "")[11:16].replace(":", "") or s["id"]))
+        project.new_from_pulse(ROOT / sid, sid, s)
+    else:
+        date = j.get("date", ""); kind = j.get("type", "hyrox")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date): raise HTTPException(400, "date must be YYYY-MM-DD")
+        base = f"{date}-{re.sub(r'[^a-z0-9]+', '-', kind.lower())}"
+        if (ROOT / base / "project.json").exists() and not j.get("another"): raise HTTPException(409, f"{base} exists")
+        sid = _free_sid(base, "2"); project.new(ROOT / sid, sid, date, kind)
+    pj = project.load(ROOT / sid)
+    if budget: pj["vo"]["budget_s"] = float(budget)
+    if j.get("no_data"): pj["session"]["source"] = "none"
+    project.save(ROOT / sid, pj)
     return {"id": sid}
 
 @app.get("/api/s/{sid}")

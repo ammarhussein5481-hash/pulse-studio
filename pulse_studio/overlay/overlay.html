@@ -28,6 +28,7 @@ html,body{margin:0;width:1080px;height:1920px;background:transparent;overflow:hi
 #grid{position:absolute;left:80px;right:80px;top:640px;display:grid;grid-template-columns:1fr 1fr;gap:50px 30px;text-align:center}
 #grid .v{font-family:Anton;font-size:140px;color:var(--or);line-height:1;font-variant-numeric:tabular-nums}
 #grid .e{font-family:Archivo;font-weight:700;font-size:26px;letter-spacing:.25em;color:var(--bone);margin-top:6px}
+#grid>div:only-child,#grid>div:last-child:nth-child(odd){grid-column:1/-1}
 svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 </style></head><body>
 <div id="wm" class="sh">__WATERMARK__</div><div id="pl" class="sh"></div><div id="prog"><i></i></div>
@@ -47,7 +48,7 @@ function autoMeta(key){
     return [(SES.type||"").toUpperCase()+" · "+day, dm, null, `<b>${ORDER.length}</b> STATIONS · PULSE ${(SES.type||"").toUpperCase()}`];}
   if(key==="warmup") return ["BEFORE ANYTHING","WARM-UP","5:00","MOBILITY · LIGHT JUMPS"];
   if(key==="closing") return ["SESSION COMPLETE","PULSE "+(SES.type||"").toUpperCase(),null,""];
-  if(!d) return [key.toUpperCase(),key.toUpperCase(),null,""];
+  if(!d) return [i<0?"":`STATION ${String(i+1).padStart(2,"0")}`, key.replace(/_/g," ").toUpperCase(), null, ""];
   const parts=[];
   if(d.erg){parts.push("1000 M"); parts.push(`<b>${d.erg[1].slice(0,4)}</b> /500M`); parts.push(`<b>${d.erg[2]}</b> SPM`);}
   else{ const R={wall_balls:"<b>100</b> REPS",burpee_bj:`<b>${d.steps||""}</b> JUMPS · <b>80</b> M`}[key]; if(R) parts.push(R); else if(d.m) parts.push(`<b>${Math.round(d.m)}</b> M${d.steps?` · <b>${d.steps}</b> STEPS`:""}`);
@@ -55,7 +56,7 @@ function autoMeta(key){
   return [`STATION ${String(i+1).padStart(2,"0")}`, d.station.toUpperCase(), mm(d.erg?d.erg[0]:d.s), parts.join(" · ")];
 }
 const META=new Proxy({},{get:(_,k)=>autoMeta(k)});
-const FINALS=()=>[[Math.round((SES.total_s||0)/60),"MINUTES"],[ORDER.length,"STATIONS"],[SES.avg_hr||0,"AVG BPM"],[SES.kcal||0,"KCAL"]];
+const FINALS=()=>[[Math.round((SES.total_s||0)/60),"MINUTES"],[ORDER.length,"STATIONS"],[SES.avg_hr||0,"AVG BPM"],[SES.kcal||0,"KCAL"]].filter(f=>f[0]); // no-data reels: only what exists
 const $=id=>document.getElementById(id), clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), eo=x=>1-Math.pow(1-x,3);
 const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}, toSec=t=>{const[a,b]=t.split(":").map(Number);return a*60+b};
 const NS="http://www.w3.org/2000/svg"; const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e};
@@ -112,7 +113,7 @@ const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>t
  closing:(s)=>zones(s,D._session)};
 let upd=null;
 function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.removeChild(svg.firstChild); upd=null;
-  const b=BUILD[sc.key]; if(b) upd=b(svg,D[sc.key]);
+  const b=BUILD[sc.key]; const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):D[sc.key]; if(b&&has) upd=b(svg,D[sc.key]);
   const m=META[sc.key]; $("kicker").textContent=m[0];
   if(sc.key==="closing"){$("name").innerHTML=`<svg width="104" height="104" viewBox="0 0 100 100" style="vertical-align:-14px;margin-right:22px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"><rect x="2" y="2" width="96" height="96" rx="22" fill="__OR__"/><rect x="22" y="58" width="14" height="22" rx="3" fill="__BONE__"/><rect x="43" y="42" width="14" height="38" rx="3" fill="__BONE__"/><rect x="64" y="24" width="14" height="56" rx="3" fill="__BONE__"/></svg>${m[1]}`;}
   else $("name").textContent=m[1];
@@ -125,7 +126,7 @@ function render(t){
   const sc=TL.find(s=>t>=s.start&&t<s.end)||TL[TL.length-1]; if(cur!==sc) setScene(sc);
   const u=t-sc.start, dur=sc.end-sc.start, rem=sc.end-t, m=META[sc.key], fin=sc.key==="closing";
   const vis=clamp(u/0.3,0,1)*clamp(rem/0.3,0,1); $("top").style.opacity=vis; $("dia").style.opacity=vis*clamp((u-0.5)/0.3,0,1); $("grid").style.opacity=vis; $("cap").style.opacity=vis;
-  const i=ORDER.indexOf(sc.key); const n=fin?8:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/8*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / 08`; $("pl").style.opacity=vis;
+  const i=ORDER.indexOf(sc.key); const N=Math.max(1,ORDER.length), n=fin?N:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/N*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / ${String(N).padStart(2,"0")}`; $("pl").style.opacity=vis;
   $("kicker").style.transform=`translateY(${(1-eo(clamp(u/0.35,0,1)))*-18}px)`;
   const a=eo(clamp((u-0.08)/0.4,0,1)); $("name").style.transform=`scale(${0.92+0.08*a})`; $("name").style.opacity=a;
   if(m[2]){const p=eo(clamp((u-0.15)/0.6,0,1)); $("big").textContent=mmss(toSec(m[2])*p); $("big").style.opacity=1; const pop=u>0.75&&u<0.95?1+0.06*Math.sin((u-0.75)/0.2*Math.PI):1; $("big").style.transform=`scale(${pop})`;} else $("big").textContent="";
