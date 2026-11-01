@@ -5,16 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pulse-studio"
 version = "0.1.0"
-description = "Local reel builder: clips + voice-over + Pulse session data → 60 s 9:16 story (climbday identity)"
+description = "Local reel builder: clips + voice-over + Pulse session data → 9:16 reel (climbday identity)"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.26", "faster-whisper>=1.1", "av<16"]
+dependencies = ["numpy>=1.26", "faster-whisper>=1.1", "av<16", "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9"]
 
 [project.scripts]
 pulse-reel = "pulse_studio.cli:main"
 
 [tool.setuptools]
-packages = ["pulse_studio", "pulse_studio.overlay"]
+packages = ["pulse_studio", "pulse_studio.overlay", "pulse_studio.ui"]
 include-package-data = true
 
 [tool.setuptools.package-data]
 "pulse_studio.overlay" = ["*.html", "*.mjs"]
+"pulse_studio.ui" = ["*.html"]

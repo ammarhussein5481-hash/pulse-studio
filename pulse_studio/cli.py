@@ -9,6 +9,7 @@
   pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4
   pulse-reel audio <dir>                                    re-mix audio only (music/sfx/amb levels changed) → new out version
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
+  pulse-reel ui [--port 8787] [--root sessions]             local web app (opens in the browser) over the same steps
 """
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
@@ -88,6 +89,9 @@ def cmd_publish(a):
     subprocess.run(["scp", str(src), dest.rstrip("/") + "/" + name], check=True); print("published", name)
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["ui"]:
+        from .ui.server import main as ui_main; return ui_main(argv[1:])
     ap = argparse.ArgumentParser(prog="pulse-reel", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("new"); p.add_argument("dir"); p.add_argument("--date", required=True); p.add_argument("--type", default="hyrox"); p.add_argument("--name"); p.add_argument("--budget", type=float, help="target length in seconds (default 60)"); p.set_defaults(f=cmd_new)

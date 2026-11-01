@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse Studio</title>
+<link rel="stylesheet" href="/fonts/anton/index.css">
+<link rel="stylesheet" href="/fonts/archivo/index.css">
+<link rel="stylesheet" href="/fonts/archivo/600.css">
+<link rel="stylesheet" href="/fonts/noto-kufi-arabic/index.css">
+<style>
+:root{--bg:#0e0e0e;--bg2:#161616;--bg3:#1f1f1f;--line:#2a2a2a;--bone:#F4EFE6;--mute:#8f8a82;--or:#FF5A1E;--ok:#5ad67d;--warn:#ffc14d}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--bone);font:14px/1.45 Archivo,system-ui,sans-serif}
+a{color:var(--or)}
+h1,h2,h3,.big{font-family:Anton,Impact,sans-serif;font-weight:400;letter-spacing:.02em;text-transform:uppercase;margin:0}
+h2{font-size:22px;margin-bottom:10px}
+.ar{font-family:"Noto Kufi Arabic",sans-serif;direction:rtl;text-align:right}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+aside{background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+aside h1{font-size:26px;color:var(--or);line-height:1}
+aside h1 small{display:block;font:11px Archivo;letter-spacing:.3em;color:var(--mute);margin-top:4px}
+.sess{display:block;padding:8px 10px;border-radius:6px;color:var(--bone);text-decoration:none;cursor:pointer;margin-top:4px;border:1px solid transparent}
+.sess:hover{background:var(--bg3)} .sess.on{border-color:var(--or)}
+.sess small{display:block;color:var(--mute);font-size:11px}
+main{padding:22px 28px 120px;max-width:1500px}
+.top{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+.top h1{font-size:44px;line-height:.95}
+.top .meta{color:var(--mute);font-size:12px;letter-spacing:.15em;text-transform:uppercase}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 24px}
+.step{background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;color:var(--bone);font:600 12px Archivo;letter-spacing:.08em;text-transform:uppercase;display:flex;gap:8px;align-items:center}
+.step:hover{border-color:var(--bone)} .step.done::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.step.todo::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--line)}
+.step.busy::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--or);animation:p 1s infinite}
+@keyframes p{50%{opacity:.2}}
+section{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button,.btn{background:var(--or);color:#111;border:0;border-radius:6px;padding:8px 14px;font:600 12px Archivo;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+button.ghost{background:transparent;color:var(--bone);border:1px solid var(--line)} button.ghost:hover{border-color:var(--bone)}
+button.sm{padding:4px 8px;font-size:11px} button:disabled{opacity:.4;cursor:default}
+input,select,textarea{background:var(--bg);color:var(--bone);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:13px Archivo} input:focus,select:focus,textarea:focus{outline:1px solid var(--or)}
+input[type=number]{width:74px}
+.drop{border:1px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--mute);cursor:pointer} .drop.over{border-color:var(--or);color:var(--bone)}
+.clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.clip{background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer}
+.clip:hover{border-color:var(--or)} .clip img{width:100%;display:block;aspect-ratio:8/1.4;object-fit:cover}
+.clip .cap{padding:6px 8px;font-size:11px;display:flex;justify-content:space-between;color:var(--mute)} .clip .cap b{color:var(--bone)}
+.motion{display:flex;gap:1px;height:14px;padding:0 8px 6px} .motion i{flex:1;background:var(--or);opacity:.7;align-self:flex-end}
+table{border-collapse:collapse;width:100%} th{font:600 10px Archivo;letter-spacing:.15em;text-transform:uppercase;color:var(--mute);text-align:left;padding:4px 6px}
+td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
+.words{line-height:2.1;direction:rtl;text-align:right;font-family:"Noto Kufi Arabic"} .w{padding:2px 4px;border-radius:4px;cursor:pointer;white-space:nowrap}
+.w:hover{background:var(--bg3)} .w.sel{background:var(--or);color:#111} .w small{font:10px Archivo;color:var(--mute);direction:ltr;display:inline-block;margin-right:3px}
+.w.lo{color:var(--warn)}
+.scene{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:150px 1fr;gap:10px}
+.scene.on{border-color:var(--or)}
+.scene .k{font-family:Anton;font-size:20px;text-transform:uppercase;color:var(--or)} .scene .k small{display:block;font:11px Archivo;color:var(--mute);text-transform:none}
+.scene .f{display:flex;flex-wrap:wrap;gap:8px;align-items:center} .scene label{font-size:11px;color:var(--mute);display:flex;gap:4px;align-items:center}
+.scene textarea{width:100%;min-height:44px;font-family:"Noto Kufi Arabic";direction:rtl}
+.stills{display:flex;gap:8px;overflow:auto;padding-bottom:6px} .stills img{height:300px;border-radius:6px;background:#222;border:1px solid var(--line)}
+.outs{display:grid;grid-template-columns:320px 1fr;gap:16px} video{width:100%;max-height:70vh;background:#000;border-radius:8px}
+.log{position:fixed;left:240px;right:0;bottom:0;background:#070707;border-top:1px solid var(--line);max-height:38vh;display:flex;flex-direction:column;transform:translateY(100%);transition:.2s}
+.log.open{transform:none} .log .bar{display:flex;gap:10px;align-items:center;padding:6px 14px;font-size:12px;color:var(--mute);border-bottom:1px solid var(--line)}
+.log pre{margin:0;padding:10px 14px;overflow:auto;font:12px/1.5 ui-monospace,monospace;color:#cfc9bf;flex:1;white-space:pre-wrap}
+.pill{font:600 10px Archivo;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--bg3);color:var(--mute)} .pill.or{background:var(--or);color:#111}
+.hint{color:var(--mute);font-size:12px} .warn{color:var(--warn)}
+.empty{padding:60px;text-align:center;color:var(--mute)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px} @media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+.rec{width:12px;height:12px;border-radius:50%;background:#e33;display:inline-block;animation:p 1s infinite}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>Pulse<br>Studio<small>reel builder</small></h1>
+  <div style="margin:18px 0 8px" class="row">
+    <button class="sm" onclick="newSession()">+ New session</button>
+  </div>
+  <div id="sessions"></div>
+  <p class="hint" style="margin-top:20px" id="root"></p>
+</aside>
+<main id="main"><div class="empty">Pick a session or create one.</div></main>
+</div>
+<div class="log" id="log"><div class="bar"><span id="logtitle"></span><span id="logstate" class="pill"></span><span style="flex:1"></span><button class="ghost sm" onclick="stopJob()">Stop</button><button class="ghost sm" onclick="$('log').classList.remove('open')">Hide</button></div><pre id="logpre"></pre></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let S=null, SID=null, selScene=0, selWord=null, job=null, rec=null, recChunks=[];
+const api=async(url,opt={})=>{const r=await fetch(url,opt);if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()};
+const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=t=>{t=Math.round(t);return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
+
+async function loadSessions(){
+  const r=await api('/api/sessions'); $('root').textContent=r.root;
+  $('sessions').innerHTML=r.sessions.map(s=>`<a class="sess ${s.id===SID?'on':''}" onclick="open('${s.id}')">${esc(s.id)}<small>${s.scenes} scenes · ${s.outs} builds</small></a>`).join('')||'<p class="hint">no sessions yet</p>';
+}
+async function newSession(){
+  const date=prompt('Session date (YYYY-MM-DD)',new Date().toISOString().slice(0,10)); if(!date) return;
+  const type=prompt('Type (hyrox / run / ride …)','hyrox'); if(!type) return;
+  const budget=prompt('Target length in seconds','60');
+  try{const r=await api('/api/sessions',J('POST',{date,type,budget:+budget||60})); await loadSessions(); open(r.id)}catch(e){alert(e.message)}
+}
+async function open(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions()}
+async function refresh(){if(SID){S=await api('/api/s/'+SID); render()}}
+
+function stationKeys(){const d=S.data||{}; const o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); return ['intro','warmup',...o,'closing']}
+function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
+
+function render(){
+  const p=S.project, tl=S.timeline, d=S.data;
+  const done={ingest:S.clips.length>0,data:!!d,stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
+  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['stt','3 · Transcribe'],['timeline','4 · Timeline'],['stills','5 · Stills'],['build','6 · Build'],['audio','Remix audio'],['publish','Publish']];
+  const warn=tl&&tl.tempo>=1.12?`<span class="warn">tempo ×${tl.tempo} — drop a phrase or raise the budget</span>`:'';
+  $('main').innerHTML=`
+  <div class="top"><h1>${esc(p.name)}</h1><div class="meta">${esc(p.session.date)} · ${esc(p.session.type)} · ${p.vo.budget_s}s · ${esc(p.identity)}</div>
+    <span style="flex:1"></span>
+    <label class="hint">Length <input type="number" value="${p.vo.budget_s}" onchange="p().vo.budget_s=+this.value;save()"> s</label>
+    <label class="hint">Data <select onchange="p().session.source=this.value;save()"><option ${p.session.source==='pulse'?'selected':''}>pulse</option><option ${p.session.source==='file'?'selected':''}>file</option></select></label>
+    ${S.env.token?'':'<span class="pill warn">PULSE_TOKEN not set</span>'}
+  </div>
+  <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
+  ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
+
+  <div class="grid2">
+  <section><h2>Clips <span class="pill">${S.raw.length} in raw/</span></h2>
+    <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files here (or click) · .mov .mp4</div>
+    <div class="clips" style="margin-top:12px">${S.clips.map(c=>`<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
+      ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}">`:''}
+      <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
+      <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span></div></div>`).join('')}
+    ${!S.clips.length&&S.raw.length?'<p class="hint">files present — run <b>1 · Clips</b> to see contact sheets</p>':''}</div>
+  </section>
+
+  <section><h2>Voice-over <span class="pill">${S.vo.length} files</span></h2>
+    <div class="row"><div class="drop" style="flex:1" onclick="pick('vo')">drop voice recordings (.m4a) or click</div>
+      <input id="recname" value="main" style="width:90px" title="main = the full script; other names = extra files (warmup…)">
+      <button id="recbtn" onclick="toggleRec()">● Record</button></div>
+    <p class="hint">${S.vo.map(f=>`<span class="pill">${esc(f)}</span> `).join('')} main = <b>${esc(p.vo.main)}</b>${Object.entries(p.vo.extra||{}).map(([k,v])=>` · ${k} = ${esc(v)}`).join('')}</p>
+    <div class="row"><label class="hint">Dialect hint <input value="${esc(p.vo.dialect_hint)}" style="width:260px" onchange="p().vo.dialect_hint=this.value;save()"></label></div>
+    ${Object.entries(S.stt).map(([name,segs])=>`<h3 style="margin-top:12px;font-size:14px;color:var(--mute)">${esc(name)} — click a word for the start, a second for the end of the selected scene</h3>
+      <div class="words">${segs.flatMap(s=>s.words).map(w=>`<span class="w ${w[3]<0.5?'lo':''} ${inSel(name,w[1])?'sel':''}" onclick="pickWord('${name}',${w[1]},${w[2]})"><small>${w[1]}</small>${esc(w[0])}</span>`).join(' ')}</div>`).join('')}
+  </section>
+  </div>
+
+  <section><h2>Session data ${d?`<span class="pill">${esc(d._session?.date)} · ${fmt(d._session?.total_s||0)} · avg ${d._session?.avg_hr} bpm · ${d._session?.kcal} kcal</span>`:'<span class="pill">not fetched</span>'}</h2>
+    ${d?`<table><tr><th>key</th><th>station</th><th>time</th><th>HR avg/max</th><th>steps</th><th>m</th><th>erg</th></tr>
+      ${stationKeys().filter(k=>d[k]).map(k=>{const x=d[k];return `<tr><td>${k}</td><td>${esc(x.station)}</td><td>${fmt(x.s)}</td><td>${x.hr}/${x.max}</td><td>${x.steps??''}</td><td>${x.m??''}</td><td>${x.erg?`${x.erg[1]}/500m · ${x.erg[2]} spm`:''}</td></tr>`}).join('')}</table>`:'<p class="hint">run <b>2 · Data</b> (needs PULSE_TOKEN, or set Data = file and put data.json in the session folder)</p>'}
+  </section>
+
+  <section><h2>Scenes <span class="pill">${p.scenes.length}</span> <button class="ghost sm" onclick="addScene()">+ add</button> <button class="sm" onclick="save(true)">Save project.json</button></h2>
+    <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words.</p>
+    ${p.scenes.map((s,i)=>sceneRow(s,i,tl)).join('')||'<p class="hint">no scenes — add one per station in session order, plus intro / closing</p>'}
+  </section>
+
+  <section><h2>Audio</h2><div class="row">
+    <label class="hint"><input type="checkbox" ${p.audio.music?'checked':''} onchange="p().audio.music=this.checked;save()"> music</label>
+    <label class="hint">music dB <input type="number" value="${p.audio.music_db}" onchange="p().audio.music_db=+this.value;save()"></label>
+    <label class="hint"><input type="checkbox" ${p.audio.sfx?'checked':''} onchange="p().audio.sfx=this.checked;save()"> sfx</label>
+    <label class="hint">sfx dB <input type="number" value="${p.audio.sfx_db}" onchange="p().audio.sfx_db=+this.value;save()"></label>
+    <label class="hint">ambience dB <input type="number" value="${p.audio.amb_db}" onchange="p().audio.amb_db=+this.value;save()"></label>
+    <span class="hint">after changing: <b>Remix audio</b> (3 min) instead of a full build</span></div>
+  </section>
+
+  <section><h2>Stills <span class="pill">${S.stills.length}</span></h2>
+    <div class="stills">${S.stills.map(f=>`<img src="/files/${SID}/build/stills/${f}" title="${f}">`).join('')||'<p class="hint">run <b>5 · Stills</b> for overlay QA before a 12-minute build</p>'}</div>
+  </section>
+
+  <section><h2>Builds <span class="pill">${S.outs.length}</span></h2>
+    ${S.outs.length?`<div class="outs"><div>${S.outs.slice().reverse().map(o=>`<div class="row" style="margin-bottom:6px"><button class="ghost sm" onclick="play('${o.file}')">v${o.v}</button><span class="hint">${o.mb} MB · ${new Date(o.mtime*1000).toLocaleTimeString()}</span><a class="hint" href="/files/${SID}/out/${o.file}" download>download</a></div>`).join('')}
+      <div class="row" style="margin-top:12px"><input id="pubto" placeholder="user@host:/path/ (or PULSE_SHARE)" value="${esc(S.env.share)}" style="flex:1"><button class="sm" onclick="run('publish',{to:$('pubto').value})">Publish latest</button></div></div>
+      <div><video id="player" controls src="/files/${SID}/out/${S.outs[S.outs.length-1].file}"></video>
+      ${S.outs[S.outs.length-1].sheet?`<img style="width:100%;margin-top:8px;border-radius:6px" src="/files/${SID}/out/${S.outs[S.outs.length-1].sheet}">`:''}</div></div>`
+      :'<p class="hint">nothing built yet</p>'}
+  </section>`;
+  for(const k of ['raw','vo']){const el=$('drop'+k)||document.querySelectorAll('.drop')[k==='raw'?0:1]; if(!el) continue;
+    el.ondragover=e=>{e.preventDefault();el.classList.add('over')}; el.ondragleave=()=>el.classList.remove('over');
+    el.ondrop=e=>{e.preventDefault();el.classList.remove('over');upload(k,e.dataTransfer.files)}}
+}
+function inSel(name,t){const s=S.project.scenes[selScene]; if(!s||!s.vo||s.vo.file!==name) return false;
+  if(s.vo.windows) return s.vo.windows.some(([a,b])=>t>=a&&t<=b); return s.vo.from!=null&&t>=s.vo.from&&t<=(s.vo.to??1e9)}
+function sceneRow(s,i,tl){
+  const t=tl&&tl.scenes.find(x=>x.key===s.key);
+  const win=s.vo.windows?JSON.stringify(s.vo.windows):'';
+  return `<div class="scene ${i===selScene?'on':''}" onclick="selScene=${i};render()">
+    <div><div class="k">${esc(s.key)}<small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}</small></div>
+      <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button></div></div>
+    <div>
+      <div class="f">
+        <label>key <select onchange="sc(${i}).key=this.value;save()">${stationKeys().concat(stationKeys().includes(s.key)?[]:[s.key]).map(k=>`<option ${k===s.key?'selected':''}>${k}</option>`).join('')}</select></label>
+        <label>clip <select onchange="sc(${i}).clip=this.value;save()"><option></option>${S.raw.concat(S.raw.includes(s.clip)?[]:[s.clip]).map(c=>`<option ${c===s.clip?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+        <label>in <input type="number" step="0.1" value="${s.in}" onchange="sc(${i}).in=+this.value;save()"> s</label>
+        <label>crop <input value="${esc(s.crop)}" style="width:90px" onchange="sc(${i}).crop=this.value;save()" title="auto | full | w:h:x:y"></label>
+        <label>clip audio <input type="number" value="${s.amb_db}" onchange="sc(${i}).amb_db=+this.value;save()"> dB</label>
+        <label>vo <select onchange="sc(${i}).vo.file=this.value;save()">${voFiles().map(f=>`<option ${f===s.vo.file?'selected':''}>${f}</option>`).join('')}</select>
+          <input type="number" step="0.01" placeholder="from" value="${s.vo.from??''}" onchange="if(this.value==='')delete sc(${i}).vo.from;else sc(${i}).vo.from=+this.value;save()">
+          <input type="number" step="0.01" placeholder="to" value="${s.vo.to??''}" onchange="if(this.value==='')delete sc(${i}).vo.to;else sc(${i}).vo.to=+this.value;save()">
+          <input placeholder="windows [[a,b],[c,d]]" value="${esc(win)}" style="width:170px" onchange="setWin(${i},this.value)"></label>
+        <label>title <input value="${esc(s.title?s.title.join(' | '):'')}" placeholder="KICKER | NAME | 4:06 | sub" style="width:220px" onchange="sc(${i}).title=this.value?this.value.split('|').map(x=>x.trim()):null;save()"></label>
+      </div>
+      <textarea onchange="sc(${i}).caption=this.value;save()" placeholder="caption (Arabic, corrected)">${esc(s.caption)}</textarea>
+    </div></div>`;
+}
+const p=()=>S.project, sc=i=>S.project.scenes[i];
+function setWin(i,v){try{sc(i).vo.windows=v?JSON.parse(v):undefined; if(!v) delete sc(i).vo.windows; save()}catch(e){alert('windows must be JSON like [[1.2,3.4],[5,6]]')}}
+function addScene(){const k=stationKeys().find(k=>!p().scenes.some(s=>s.key===k))||'scene'; p().scenes.push({key:k,clip:S.raw[0]||'',in:0,crop:'auto',amb_db:-9,vo:{file:'main'},caption:'',title:null}); selScene=p().scenes.length-1; save()}
+function del(i){if(confirm('remove scene '+sc(i).key+'?')){p().scenes.splice(i,1); selScene=Math.max(0,selScene-1); save()}}
+function move(i,d){const a=p().scenes; const j=i+d; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; selScene=j; save()}
+function useClip(f){if(!p().scenes.length) addScene(); sc(selScene).clip=f; save()}
+function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return; v.file=name; delete v.windows;
+  if(selWord==null||v.from==null||s<v.from){v.from=s;delete v.to;selWord=s}else{v.to=e;selWord=null} save()}
+let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}; now?await go():saveT=setTimeout(go,400)}
+function toast(m){$('logtitle').textContent=m}
+
+function pick(kind){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept=kind==='raw'?'video/*,.mov,.mp4':'audio/*,.m4a'; i.onchange=()=>upload(kind,i.files); i.click()}
+async function upload(kind,files){if(!files.length) return; const fd=new FormData(); fd.append('kind',kind); for(const f of files) fd.append('files',f);
+  showLog(`uploading ${files.length} file(s) to ${kind}/ …`); try{await fetch(`/api/s/${SID}/upload`,{method:'POST',body:fd}); logLine('uploaded'); await refresh()}catch(e){logLine('upload failed: '+e.message)}}
+
+async function toggleRec(){
+  if(rec){rec.stop(); return}
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false}});
+  rec=new MediaRecorder(stream,{mimeType:'audio/webm;codecs=opus'}); recChunks=[];
+  rec.ondataavailable=e=>recChunks.push(e.data);
+  rec.onstop=async()=>{stream.getTracks().forEach(t=>t.stop()); const name=$('recname').value||'main';
+    const fd=new FormData(); fd.append('name',name); fd.append('file',new Blob(recChunks,{type:'audio/webm'}),name+'.webm');
+    $('recbtn').innerHTML='● Record'; rec=null; showLog('saving recording …'); await fetch(`/api/s/${SID}/record`,{method:'POST',body:fd}); logLine(`saved vo/${name}.m4a — run 3 · Transcribe`); refresh()};
+  rec.start(); $('recbtn').innerHTML='<span class="rec"></span> Stop';
+}
+
+async function run(step,extra){
+  if(job){showLog(); return}
+  if(step==='build'&&!confirm('Full build takes ~12 minutes on the laptop. Continue?')) return;
+  const body=Object.assign({},extra||{});
+  if(step==='stt'&&Object.keys(S.stt).length&&confirm('Re-transcribe (force)?')) body.force=true;
+  if(step==='data'&&S.data&&confirm('Re-fetch data (force)?')) body.force=true;
+  if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
+  try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';
+    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
+    $('logstate').textContent='running'}
+  catch(e){alert(e.message)}
+}
+async function stopJob(){if(job) await api(`/api/jobs/${job.id}/stop`,J('POST'))}
+function showLog(t){$('log').classList.add('open'); if(t) $('logtitle').textContent=t}
+function logLine(l){const pre=$('logpre'); pre.textContent+=l+'\n'; pre.scrollTop=pre.scrollHeight}
+function play(f){$('player').src=`/files/${SID}/out/${f}`; $('player').play()}
+
+loadSessions().then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) open(r.sessions[0].id)});
+</script>
+</body>
+</html>
