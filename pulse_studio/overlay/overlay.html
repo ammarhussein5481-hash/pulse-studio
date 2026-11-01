@@ -30,10 +30,30 @@ html,body{margin:0;width:1080px;height:1920px;background:transparent;overflow:hi
 #grid .e{font-family:Archivo;font-weight:700;font-size:26px;letter-spacing:.25em;color:var(--bone);margin-top:6px}
 #grid>div:only-child,#grid>div:last-child:nth-child(odd){grid-column:1/-1}
 svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
+#storm{position:absolute;left:0;right:0;top:520px;text-align:center;font-family:Anton;font-size:150px;line-height:1;color:var(--bone);display:none;letter-spacing:.02em}
+#storm b{color:var(--or);font-weight:400}
+#glass{position:absolute;left:90px;top:290px;width:900px;height:640px;border-radius:44px;border:2px solid rgba(255,255,255,.32);background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.03));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 30px 80px rgba(0,0,0,.35);display:none}
+#inset{position:absolute;width:300px;border:4px solid var(--bone);border-radius:22px;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,.6);opacity:0;background:#000}
+#inset img{width:100%;display:block}
+#inset .l{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:var(--bone);font:700 20px Archivo;letter-spacing:.25em;text-align:center;padding:8px 0}
+#phone{position:absolute;right:80px;top:600px;width:300px;height:620px;border-radius:46px;background:#0a0a0a;border:7px solid #262626;box-shadow:0 24px 70px rgba(0,0,0,.7),inset 0 0 0 2px #000;overflow:hidden;opacity:0}
+#phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+#phone:before{content:"";position:absolute;left:50%;top:0;width:110px;height:28px;margin-left:-55px;background:#0a0a0a;border-radius:0 0 16px 16px;z-index:2}
+#chk{position:absolute;left:150px;right:150px;top:600px;display:none}
+#chk .r{display:flex;align-items:center;gap:26px;height:66px;font-family:Archivo;font-weight:700;font-size:32px;letter-spacing:.08em;text-transform:uppercase;color:var(--bone)}
+#chk .b{width:44px;height:44px;border-radius:9px;border:3px solid rgba(244,239,230,.45);display:flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box}
+#chk .r.on .b{background:var(--or);border-color:var(--or)}
+#chk .b svg{width:26px;height:26px;opacity:0} #chk .r.on .b svg{opacity:1}
+#chk .n{flex:1} #chk .t{font-family:Anton;font-size:44px;color:var(--or);font-variant-numeric:tabular-nums;opacity:0} #chk .r.on .t{opacity:1}
+#chkf{position:absolute;left:150px;right:150px;top:1170px;display:none;justify-content:space-between;text-align:center}
+#chkf .v{font-family:Anton;font-size:var(--fv,84px);color:var(--or);line-height:1;font-variant-numeric:tabular-nums} #chkf .e{font-family:Archivo;font-weight:700;font-size:20px;letter-spacing:.25em;margin-top:4px}
+#cap.chat{top:auto;bottom:360px;display:flex;flex-direction:column;align-items:flex-end;text-align:right;line-height:1.45;font-size:42px}
+#cap.chat .bub{background:rgba(14,14,14,.78);border-radius:30px;padding:14px 32px;margin-top:12px;max-width:880px;opacity:0;transform-origin:bottom right;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+#cap.chat .bub.me{background:var(--or);color:#111}
 </style></head><body>
-<div id="wm" class="sh">__WATERMARK__</div><div id="pl" class="sh"></div><div id="prog"><i></i></div>
+<div id="glass"></div><div id="wm" class="sh">__WATERMARK__</div><div id="pl" class="sh"></div><div id="prog"><i></i></div>
 <div id="top" class="sh"><div id="kicker" class="lat"></div><div id="name"></div><div id="big"></div><div id="sub"></div></div>
-<div id="grid" class="sh"></div>
+<div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="phone"><img></div>
 <svg id="dia" viewBox="0 0 1080 300"></svg>
 <div id="cap" class="sh"></div><div id="flash"></div>
 <script src="data.js"></script>
@@ -41,7 +61,7 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 const D=window.DATA.data, TL=window.DATA.timeline.scenes;
 const SES=D._session||{}; const ORDER=SES.order||Object.keys(D).filter(k=>!k.startsWith("_"));
 const KIND=SES.type||"hyrox", KICK={run:"PART",ride:"PART",strength:"EXERCISE"}[KIND]||"STATION";
-const OV=window.DATA.titles||{}; const mm=s=>{s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const OV=window.DATA.titles||{}; const OPT=window.DATA.scenes||{}; const TICK='<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'; const mm=s=>{s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
 function autoMeta(key){
   if(OV[key]) return OV[key];
   const d=D[key]; const i=ORDER.indexOf(key);
@@ -143,20 +163,46 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("sub").dataset.k=sc.key; $("sub").innerHTML=m[3].split(" ").map(w=>`<span>${w}</span>`).join(" ");
   const cw=sc.cap.split(/\s+/).filter(Boolean), tw=sc.words, mc=cw.length, nt=tw.length;
   $("cap").innerHTML=cw.map((w,i)=>{const j=nt===mc?i:Math.round(i*(nt-1)/Math.max(1,mc-1)); return `<span data-s="${tw[Math.min(j,nt-1)][1]}">${w}</span>`;}).join(" ");
-  $("grid").innerHTML= sc.key==="closing" ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
+  const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]); const chk=sc.key==="closing"&&o.style==="checklist";
+  $("grid").innerHTML= sc.key==="closing"&&!chk ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
+  // headline storm: the sub-line's facts flash one by one before the title lands
+  $("storm").innerHTML=""; $("storm").style.display="none";
+  if(fx.has("storm")){ const parts=m[3].split("·").map(x=>x.trim()).filter(Boolean); $("storm").dataset.n=parts.length; $("storm").innerHTML=parts.map(x=>`<div>${x}</div>`).join(""); }
+  $("glass").style.display=fx.has("glass")?"block":"none";
+  // chat takeover: caption split into bubbles at sentence ends, each popping in at its first word
+  $("cap").className=fx.has("chat")?"chat sh":"sh";
+  if(fx.has("chat")){ const bubs=[]; let cur=[]; cw.forEach((w,i)=>{cur.push(i); if(/[.،؟!]$/.test(w)||i===cw.length-1){bubs.push(cur);cur=[]}});
+    $("cap").innerHTML=bubs.map((ix,k)=>{const j=nt===mc?ix[0]:Math.round(ix[0]*(nt-1)/Math.max(1,mc-1)); return `<div class="bub ${k%2?"me":""}" data-s="${tw[Math.min(j,nt-1)][1]}">${ix.map(i=>cw[i]).join(" ")}</div>`;}).join(""); }
+  // b-roll inset + phone mockup
+  const ins=$("inset"); ins.style.opacity=0; if(o.inset){ins.querySelector("img").src=o.inset.file; ins.querySelector(".l").textContent=o.inset.label||""; ins.style.width=(o.inset.w||300)+"px"; const [x,y]=o.inset.pos||[740,980]; ins.style.left=x+"px"; ins.style.top=y+"px";}
+  const ph=$("phone"); ph.style.opacity=0; if(o.phone){ph.querySelector("img").src=o.phone.file;}
+  $("dia").style.transformOrigin="0 0"; $("dia").style.transform=(o.inset||o.phone)?"scale(.62)":""; $("dia").style.display=chk?"none":"";
+  $("grid").style.gridTemplateColumns=o.phone?"1fr":""; $("grid").style.right=o.phone?"500px":"";
+  // checklist closing
+  $("chk").style.display=chk?"block":"none"; $("chkf").style.display=chk?"flex":"none";
+  if(chk){ $("chk").innerHTML=ORDER.map(k=>{const d=D[k]||{}; return `<div class="r"><div class="b">${TICK}</div><div class="n">${(d.station||k).toUpperCase()}</div><div class="t">${d.s?mm(d.erg?d.erg[0]:d.s):""}</div></div>`;}).join("");
+    $("chk").style.right=o.phone?"420px":"150px"; $("chkf").innerHTML=FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join(""); $("chkf").style.right=o.phone?"420px":"150px"; $("chkf").style.setProperty("--fv",o.phone?"62px":"84px"); }
 }
 function render(t){
   const sc=TL.find(s=>t>=s.start&&t<s.end)||TL[TL.length-1]; if(cur!==sc) setScene(sc);
-  const u=t-sc.start, dur=sc.end-sc.start, rem=sc.end-t, m=META[sc.key], fin=sc.key==="closing";
+  const u=t-sc.start, dur=sc.end-sc.start, rem=sc.end-t, m=META[sc.key], fin=sc.key==="closing"; const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]);
+  const ST=fx.has("storm")?Math.min(0.9,0.16*(+$("storm").dataset.n||0)):0, uu=Math.max(0,u-ST);
+  if(ST){const k=Math.floor(u/0.16), on=u<ST; $("storm").style.display=on?"block":"none"; [...$("storm").children].forEach((c,i)=>{c.style.display=i===k?"block":"none"; const q=(u-k*0.16)/0.16; c.style.transform=`scale(${1.25-0.25*eo(clamp(q*3,0,1))})`;});}
   const vis=clamp(u/0.3,0,1)*clamp(rem/0.3,0,1); $("top").style.opacity=vis; $("dia").style.opacity=vis*clamp((u-0.5)/0.3,0,1); $("grid").style.opacity=vis; $("cap").style.opacity=vis;
   const i=ORDER.indexOf(sc.key); const N=Math.max(1,ORDER.length), n=fin?N:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/N*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / ${String(N).padStart(2,"0")}`; $("pl").style.opacity=vis;
-  $("kicker").style.transform=`translateY(${(1-eo(clamp(u/0.35,0,1)))*-18}px)`;
-  const a=eo(clamp((u-0.08)/0.4,0,1)); $("name").style.transform=`scale(${0.92+0.08*a})`; $("name").style.opacity=a;
-  if(m[2]){const p=eo(clamp((u-0.15)/0.6,0,1)); $("big").textContent=mmss(toSec(m[2])*p); $("big").style.opacity=1; const pop=u>0.75&&u<0.95?1+0.06*Math.sin((u-0.75)/0.2*Math.PI):1; $("big").style.transform=`scale(${pop})`;} else $("big").textContent="";
-  [...$("sub").children].forEach((w,k)=>{const q=eo(clamp((u-0.8-k*0.07)/0.18,0,1)); w.style.opacity=q; w.style.transform=`translateY(${(1-q)*14}px) scale(${0.8+0.2*q})`;});
+  $("kicker").style.transform=`translateY(${(1-eo(clamp(uu/0.35,0,1)))*-18}px)`; $("kicker").style.opacity=ST&&u<ST?0:1;
+  const a=ST&&u<ST?0:eo(clamp((uu-0.08)/0.4,0,1)); $("name").style.transform=`scale(${0.92+0.08*a})`; $("name").style.opacity=a;
+  if(m[2]){const p=eo(clamp((uu-0.15)/0.6,0,1)); $("big").textContent=mmss(toSec(m[2])*p); $("big").style.opacity=ST&&u<ST?0:1; const pop=uu>0.75&&uu<0.95?1+0.06*Math.sin((uu-0.75)/0.2*Math.PI):1; $("big").style.transform=`scale(${pop})`;} else $("big").textContent="";
+  [...$("sub").children].forEach((w,k)=>{const q=eo(clamp((uu-0.8-k*0.07)/0.18,0,1)); w.style.opacity=q; w.style.transform=`translateY(${(1-q)*14}px) scale(${0.8+0.2*q})`;});
+  $("glass").style.opacity=vis*eo(clamp(uu/0.4,0,1));
+  if(o.inset){const q=eo(clamp((u-(o.inset.at??1.0))/0.45,0,1)); $("inset").style.opacity=q*vis; $("inset").style.transform=`translateX(${(1-q)*140}px) rotate(${(1-q)*6}deg)`;}
+  if(o.phone){const q=eo(clamp((u-(o.phone.at??0.8))/0.6,0,1)); $("phone").style.opacity=q*vis; $("phone").style.transform=`translateY(${(1-q)*260}px) rotate(${(1-q)*-4}deg)`;}
+  if(fx.has("chat")){[...$("cap").children].forEach(b=>{const s=+b.dataset.s; const q=eo(clamp((t-s+0.05)/0.25,0,1)); b.style.opacity=q*vis; b.style.transform=`scale(${0.7+0.3*q}) translateY(${(1-q)*20}px)`;});}
+  if(fin&&o.style==="checklist"){[...$("chk").children].forEach((r,k)=>{const on=u>=0.6+k*0.35; r.classList.toggle("on",on); const q=eo(clamp((u-0.3-k*0.12)/0.3,0,1)); r.style.opacity=q*vis; r.style.transform=`translateX(${(1-q)*-40}px)`; const p=clamp((u-0.6-k*0.35)/0.18,0,1); r.firstElementChild.style.transform=on&&p<1?`scale(${1+0.35*(1-p)})`:"";});
+    const t0=0.6+ORDER.length*0.35+0.2; [...$("chkf").children].forEach((c,k)=>{const q=eo(clamp((u-t0-k*0.15)/0.6,0,1)); const f=FINALS()[k]; c.firstElementChild.textContent=f[2]?(f[0]*q).toFixed(f[2]):Math.round(f[0]*q); c.style.opacity=q*vis;});}
   if(upd) upd(clamp((u-0.6)/Math.max(1,dur-1.2),0,1),u);
   if(fin){[...$("grid").children].forEach((c,k)=>{const q=eo(clamp((u-0.5-k*0.2)/0.7,0,1)); const f=FINALS()[k]; c.firstElementChild.textContent=f[2]?(f[0]*q).toFixed(f[2]):Math.round(f[0]*q); c.style.opacity=clamp((u-0.4-k*0.2)/0.2,0,1);});}
-  [...$("cap").children].forEach(w=>{const s=+w.dataset.s; const on=t>=s; w.className=on?"on":""; const q=clamp((t-s)/0.12,0,1); w.style.transform=on&&q<1?`scale(${1+0.08*(1-q)})`:"";});
+  if(!fx.has("chat")) [...$("cap").children].forEach(w=>{const s=+w.dataset.s; const on=t>=s; w.className=on?"on":""; const q=clamp((t-s)/0.12,0,1); w.style.transform=on&&q<1?`scale(${1+0.08*(1-q)})`:"";});
   const cut=TL.find(s=>Math.abs(t-s.start)<0.07&&s.start>0); $("flash").style.opacity=cut?0.5*(1-Math.abs(t-cut.start)/0.07):0;
 }
 window.render=render; window.ready=()=>document.fonts.ready.then(()=>true); render(0.5);

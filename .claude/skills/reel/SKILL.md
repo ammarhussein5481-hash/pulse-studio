@@ -29,6 +29,7 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - "Mute the clip sound at the start": that scene `amb_db: -90`. Keep wall-ball / sled scenes at −2 dB when he likes the real sound.
 - Caption wording: edit `caption`; the words re-map to the transcript timings automatically.
 - Title/number override: scene `title: ["KICKER","NAME","4:06","<b>2:03</b> /500M"]`.
+- Effects (per scene, `fx` list): `zoomcut` (snap zoom-in on the cut, pairs with the whoosh), `storm` (the sub-line facts flash one by one before the title — "1000 M", "2:03 /500M", "34 SPM"), `glass` (frosted liquid-glass pane behind the title; breaks the no-panels rule, use sparingly), `chat` (caption as chat bubbles instead of karaoke). `inset: {"file":"assets/erg.png","label":"ERGDATA","at":1.2,"w":300,"pos":[740,980]}` = b-roll picture-in-picture (ErgData screen, watch face). `phone: {"file":"assets/pulse.png","at":0.8}` = phone mockup (the Pulse app) — on the closing it pushes the stats to the left. Closing `style: "checklist"` = stations tick off one by one with their times, then the totals. Ammar's defaults from the reference reels: storm on the erg stations, checklist closing with the phone.
 - Always `pulse-reel build` or `audio` after edits, read the new contact sheet, report the version number. Never overwrite an earlier version.
 
 ## Web app

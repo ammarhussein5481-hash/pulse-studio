@@ -30,7 +30,7 @@ def tick():
 def pop():
     n = int(0.07 * SR); t = np.arange(n) / SR; return np.sin(2 * np.pi * (380 + 600 * t / 0.07) * t) * np.exp(-t * 45)
 
-def generate(tl: dict, out: Path, total_s: float = 60.0) -> Path:
+def generate(tl: dict, out: Path, total_s: float = 60.0, proj: dict | None = None) -> Path:
     buf = np.zeros(int(SR * total_s))
     def put(sig, t, g=1.0):
         i = int(t * SR); n = min(len(sig), len(buf) - i)
@@ -48,6 +48,14 @@ def generate(tl: dict, out: Path, total_s: float = 60.0) -> Path:
         for k in range(10): put(tick(), fin + 0.5 + i * 0.2 + k * 0.06, 0.2)
         put(pop(), fin + 0.5 + i * 0.2 + 0.7, 0.3)
     put(hit(), fin + 0.3, 0.6)
+    if proj:
+        opts = {s["key"]: s for s in proj["scenes"]}
+        if (opts.get("closing") or {}).get("style") == "checklist":   # one pop per station ticking off
+            n = len((tl.get("order") or [])) or 8
+            for i in range(n): put(pop(), fin + 0.6 + i * 0.35, 0.4)
+        for s in scenes:
+            if "storm" in (opts.get(s["key"], {}).get("fx") or []):     # headline storm: a tick per flashed word
+                for k in range(5): put(tick(), s["start"] + 0.1 + k * 0.16, 0.35)
     buf = np.clip(buf / (np.max(np.abs(buf)) + 1e-9) * 0.7, -1, 1)
     with wave.open(str(out), "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((buf * 32767).astype(np.int16).tobytes())

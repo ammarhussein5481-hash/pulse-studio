@@ -184,7 +184,7 @@ function render(){
   </section>
 
   <section><h2>Scenes <span class="pill">${p.scenes.length}</span> <button class="ghost sm" onclick="addScene()">+ add</button> <button class="sm" onclick="save(true)">Save project.json</button></h2>
-    <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words.</p>
+    <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words. fx: <b>zoomcut</b> snap zoom on the cut · <b>storm</b> facts flash before the title · <b>glass</b> frosted pane behind the title · <b>chat</b> caption as chat bubbles. Images for inset/phone go in the session's <code>assets/</code> folder.</p>
     ${p.scenes.map((s,i)=>sceneRow(s,i,tl)).join('')||'<p class="hint">no scenes — add one per station in session order, plus intro / closing</p>'}
   </section>
 
@@ -233,6 +233,12 @@ function sceneRow(s,i,tl){
           <input placeholder="windows [[a,b],[c,d]]" value="${esc(win)}" style="width:170px" onchange="setWin(${i},this.value)"></label>
         <label>title <input value="${esc(s.title?s.title.join(' | '):'')}" placeholder="KICKER | NAME | 4:06 | sub" style="width:220px" onchange="sc(${i}).title=this.value?this.value.split('|').map(x=>x.trim()):null;save()"></label>
       </div>
+      <div class="f" style="margin-top:6px">
+        <label>fx ${['zoomcut','storm','glass','chat'].map(f=>`<span class="pill ${(s.fx||[]).includes(f)?'or':''}" style="cursor:pointer" onclick="event.stopPropagation();toggleFx(${i},'${f}')">${f}</span>`).join('')}</label>
+        <label>inset <input value="${esc(s.inset?.file||'')}" placeholder="assets/erg.png" style="width:140px" onchange="setObj(${i},'inset','file',this.value)"><input value="${esc(s.inset?.label||'')}" placeholder="label" style="width:90px" onchange="setObj(${i},'inset','label',this.value)"><input type="number" step="0.1" value="${s.inset?.at??''}" placeholder="at s" onchange="setObj(${i},'inset','at',+this.value)"></label>
+        <label>phone <input value="${esc(s.phone?.file||'')}" placeholder="assets/pulse.png" style="width:140px" onchange="setObj(${i},'phone','file',this.value)"></label>
+        ${s.key==='closing'?`<label>style <select onchange="sc(${i}).style=this.value||null;save()"><option value="">stats</option><option value="checklist" ${s.style==='checklist'?'selected':''}>checklist</option></select></label>`:''}
+      </div>
       <textarea onchange="sc(${i}).caption=this.value;save()" placeholder="caption (Arabic, corrected)">${esc(s.caption)}</textarea>
     </div></div>`;
 }
@@ -241,6 +247,8 @@ function setWin(i,v){try{sc(i).vo.windows=v?JSON.parse(v):undefined; if(!v) dele
 function addScene(){const k=stationKeys().find(k=>!p().scenes.some(s=>s.key===k))||'scene'; p().scenes.push({key:k,clip:S.raw[0]||'',in:0,crop:'auto',amb_db:-9,vo:{file:'main'},caption:'',title:null}); selScene=p().scenes.length-1; save()}
 function del(i){if(confirm('remove scene '+sc(i).key+'?')){p().scenes.splice(i,1); selScene=Math.max(0,selScene-1); save()}}
 function move(i,d){const a=p().scenes; const j=i+d; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; selScene=j; save()}
+function toggleFx(i,f){const a=new Set(sc(i).fx||[]); a.has(f)?a.delete(f):a.add(f); sc(i).fx=[...a]; save()}
+function setObj(i,k,f,v){const o=sc(i)[k]||{}; if(v===''||Number.isNaN(v)) delete o[f]; else o[f]=v; sc(i)[k]=o.file?o:null; save()}
 function useClip(f){if(!p().scenes.length) addScene(); sc(selScene).clip=f; save()}
 function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
   if(selWord==null&&(v.from!=null||v.windows||v.file!==name)&&!confirm(`Change ${sc(selScene).key}'s voice-over window? (it is set already)`)) return;

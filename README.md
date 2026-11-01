@@ -87,6 +87,8 @@ Garmin doesn't record exercise sets unless they're logged on the watch, so stren
  "caption": "أول حاجة سكي إيرق، ألف متر. أربع دقايق وست ثواني."}
 ```
 
+Effects per scene: `"fx": ["zoomcut","storm","glass","chat"]` (snap zoom on the cut · facts flash before the title · frosted pane behind the title · caption as chat bubbles), `"inset": {"file":"assets/erg.png","label":"ERGDATA","at":1.2}` (b-roll picture-in-picture), `"phone": {"file":"assets/pulse.png"}` (phone mockup), and on the closing `"style": "checklist"` (stations tick off with their times). All are HTML/CSS in the overlay or one ffmpeg filter — no extra tools.
+
 `crop`: `auto` (centre 9:16 from a landscape source), `full` (vertical source as is), or `w:h:x:y` for a punch-in. `vo.windows: [[a,b],[c,d]]` skips filler words. `title` overrides the on-screen kicker/name/number/sub-line. `audio.music_db`, `sfx_db`, `amb_db` set the mix.
 
 ## Speed on an i5-7300U (4 threads, no GPU)

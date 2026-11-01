@@ -13,7 +13,17 @@ def write_page(dir: Path, proj: dict, data: dict, tl: dict) -> Path:
     html = (html.replace("__FONTS__", "file://" + str(fonts_dir())).replace("__BONE__", ident["bone"])
                 .replace("__OR__", ident["orange"]).replace("__WATERMARK__", ident["watermark"]))
     titles = {s["key"]: s["title"] for s in proj["scenes"] if s.get("title")}
-    (b / "data.js").write_text("window.DATA=" + json.dumps({"data": data, "timeline": tl, "titles": titles}, ensure_ascii=False) + ";", encoding="utf-8")
+    opts = {}; (b / "assets").mkdir(exist_ok=True)
+    for s in proj["scenes"]:
+        o = {"fx": s.get("fx") or [], "style": s.get("style")}
+        for k in ("inset", "phone"):
+            v = s.get(k)
+            if v and v.get("file"):
+                src = dir / v["file"]
+                if not src.exists(): raise SystemExit(f"scene {s['key']}: {k} file {v['file']} not found")
+                shutil.copy(src, b / "assets" / src.name); o[k] = {**v, "file": "assets/" + src.name}
+        opts[s["key"]] = o
+    (b / "data.js").write_text("window.DATA=" + json.dumps({"data": data, "timeline": tl, "titles": titles, "scenes": opts}, ensure_ascii=False) + ";", encoding="utf-8")
     page = b / "overlay.html"; page.write_text(html, encoding="utf-8")
     return page
 

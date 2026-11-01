@@ -21,6 +21,10 @@ SCENE_TEMPLATE = {
     "vo": {"file": "main", "from": 5.44, "to": 10.26},  # word window in the VO (seconds, as transcribed); or {"file":"warmup"} for a whole extra file
     "caption": "",            # corrected Arabic caption (words are mapped to the transcript timings)
     "title": None,            # override: [kicker, name, big, sub]
+    "fx": [],                 # effects: "zoomcut" (snap zoom-in on the cut), "storm" (headline storm before the title), "glass" (liquid-glass panel behind the title), "chat" (caption as chat bubbles)
+    "inset": None,            # b-roll overlay: {"file": "assets/erg.png", "at": 1.0, "w": 300, "pos": [740, 980], "label": "ERGDATA"}
+    "phone": None,            # phone mockup: {"file": "assets/pulse.png", "at": 0.8}
+    "style": None,            # closing only: "checklist" — stations tick off one by one with their times
 }
 
 def load(dir: Path) -> dict:

@@ -58,7 +58,7 @@ def build(dir: Path, proj: dict, stt: dict[str, list]) -> dict:
     for s in scenes:
         for f in ("start", "end", "vo_at"): s[f] = round(s[f] * k, 2)
         s["words"] = [[w, round(a * k, 2), round(b * k, 2)] for w, a, b in s["words"]]
-    tl = dict(tempo=tempo, k=round(k, 4), budget=budget, speech=round(speech, 1), scenes=scenes)
+    tl = dict(tempo=tempo, k=round(k, 4), budget=budget, speech=round(speech, 1), scenes=scenes, order=[s["key"] for s in scenes if s["key"] not in ("intro", "warmup", "closing")])
     (dir / "build" / "timeline.json").write_text(json.dumps(tl, ensure_ascii=False, indent=1), encoding="utf-8")
     return tl
 
