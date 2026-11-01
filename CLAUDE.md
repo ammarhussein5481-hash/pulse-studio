@@ -1,6 +1,6 @@
 # Pulse Studio
 
-Local reel builder for Ammar's training sessions: clips (4K camera + phone) + a voice-over he records + live session data from Pulse (Garmin / ErgData / WHOOP) → one 60 s 9:16 story in the climbday identity. Ubuntu laptop first; everything is CPU-only Python/Node/ffmpeg. Built on 2026-11-01 from the HYROX reel pipeline that ran on the VPS.
+Local reel builder for Ammar's training sessions: clips (4K camera + phone) + a voice-over he records + live session data from Pulse (Garmin / ErgData / WHOOP) → one 9:16 reel in the climbday identity (60 s by default, `vo.budget_s` per project; the timeline fits the voice-over to that length). Ubuntu laptop first; everything is CPU-only Python/Node/ffmpeg. Built on 2026-11-01 from the HYROX reel pipeline that ran on the VPS.
 
 ## Layout
 - `pulse_studio/` — the engine. `cli.py` (`pulse-reel`), `ingest.py` (clip inventory by shoot time + motion + contact sheets), `data.py` (Pulse session data), `stt.py` (faster-whisper word timestamps), `timeline.py` (VO-driven scene timing, pause compression, tempo), `media.py` (cut/crop/concat/grain, VAAPI decode when available), `overlay/` (HTML overlay rendered per frame with chrome-headless-shell over CDP), `sfx.py` + `music.py` (code-generated audio), `mix.py` (composite + loudness).

@@ -1,6 +1,6 @@
 ---
 name: reel
-description: Build or revise a 60 s 9:16 training-session story (HYROX, run, ride) from Ammar's clips, voice-over and Pulse data with the pulse-reel CLI. Use when Ammar says "new session", "make the reel", "the sled shot starts from here", "raise the music", "use this clip for burpees", "show me v2", or sends clips/voice notes for a session.
+description: Build or revise a 9:16 training-session reel (60 s by default, longer when Ammar asks) (HYROX, run, ride) from Ammar's clips, voice-over and Pulse data with the pulse-reel CLI. Use when Ammar says "new session", "make the reel", "the sled shot starts from here", "raise the music", "use this clip for burpees", "show me v2", or sends clips/voice notes for a session.
 ---
 
 # /reel — Pulse Studio reel builder
@@ -12,7 +12,7 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 2. `pulse-reel ingest <dir>` — clips sorted by **shoot time** (creation_time), motion profile per second and contact sheets `build/sheet_*.jpg`. **Look at the sheets** (Read the jpg). Rule learned: on static tripod shots the exercise is the *low-motion middle*; the handheld start/end (placing / picking up the camera) is what to cut. Selfie/handheld clips are high motion throughout.
 3. `pulse-reel data <dir>` — stations with time/HR/steps/splits (from `server/export_session.py` on the VPS; run it there first for a new date: `docker exec whoopdash-garmin python /work/pulse-studio-server/export_session.py <date>`).
 4. `pulse-reel stt <dir>` — prints every word with its start time. Build `project.json → scenes`: one per station in session order, plus `intro`, optional `warmup`, `closing`. For each scene set `clip`, `in` (seconds), `crop` (`auto` | `full` for vertical sources | `w:h:x:y` punch-in), `amb_db`, `vo` window (`from`/`to` word times, or `windows: [[a,b],...]` to skip filler, or `{"file":"warmup"}` for a whole extra file) and the **corrected `caption`** (Whisper gets ~7 % of Sudanese words wrong — fix spelling, keep his words; station names in captions stay Arabic, on-screen titles are English).
-5. `pulse-reel timeline <dir>` — check tempo. Above ×1.12: propose dropping a filler phrase (use `windows`) rather than speeding up; Ammar decides.
+5. `pulse-reel timeline <dir>` — check tempo. Above ×1.12: propose dropping a filler phrase (use `windows`) or raising `vo.budget_s` (e.g. 90 s for a Reel rather than a Story); Ammar decides the length.
 6. `pulse-reel stills <dir>` — Read 3–4 stills before a full build; check captions don't collide with the diagram, numbers are right.
 7. `pulse-reel build <dir>` (~12 min on the laptop) → `out/<name>-vN.mp4` + contact sheet jpg. Read the sheet, then tell Ammar the path and what changed.
 

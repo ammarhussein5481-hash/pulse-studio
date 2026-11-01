@@ -1,6 +1,6 @@
 # Pulse Studio
 
-Turns a training session into a 60-second 9:16 story: your clips + your voice-over + the session's real numbers (Garmin HR second by second, ErgData splits, steps) rendered as transparent overlays in the climbday identity. Runs entirely on an Ubuntu laptop; no GPU needed.
+Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in project.json or `pulse-reel new --budget 90` for longer): your clips + your voice-over + the session's real numbers (Garmin HR second by second, ErgData splits, steps) rendered as transparent overlays in the climbday identity. Runs entirely on an Ubuntu laptop; no GPU needed.
 
 ## Install (Ubuntu 22.04 / 24.04)
 
@@ -16,7 +16,7 @@ echo 'export PULSE_TOKEN=<your pulse link token>' >> ~/.bashrc   # value of .lin
 ## A session, end to end
 
 ```bash
-pulse-reel new sessions/2026-11-08-hyrox --date 2026-11-08 --type hyrox
+pulse-reel new sessions/2026-11-08-hyrox --date 2026-11-08 --type hyrox   # add --budget 90 for a longer reel
 #  → put the camera files in sessions/2026-11-08-hyrox/raw/, the voice recording in vo/
 pulse-reel ingest sessions/2026-11-08-hyrox     # clips by shoot time + contact sheets
 pulse-reel data   sessions/2026-11-08-hyrox     # pulls sessions/2026-11-08-hyrox.json from Pulse

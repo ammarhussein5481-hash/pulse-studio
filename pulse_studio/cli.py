@@ -1,4 +1,4 @@
-"""pulse-reel — build a 60 s 9:16 story from a training session: clips + voice-over + Pulse data.
+"""pulse-reel — build a 9:16 story (60 s by default, --budget to change) from a training session: clips + voice-over + Pulse data.
 
   pulse-reel new <dir> --date 2026-11-01 --type hyrox      create project.json + folders (put clips in raw/, voice in vo/)
   pulse-reel ingest <dir>                                   list clips by shoot time, motion profile, contact sheets (build/sheet_*.jpg)
@@ -21,6 +21,8 @@ def _latest_version(outdir: Path, name: str) -> int:
 
 def cmd_new(a):
     d = project.new(a.dir, a.name or Path(a.dir).name, a.date, a.type)
+    if a.budget:
+        pj = project.load(a.dir); pj["vo"]["budget_s"] = a.budget; project.save(a.dir, pj)
     print(f"created {a.dir}/project.json — add clips to raw/, voice-over to vo/, then: pulse-reel ingest {a.dir}")
 
 def cmd_ingest(a):
@@ -88,7 +90,7 @@ def cmd_publish(a):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="pulse-reel", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    p = sp.add_parser("new"); p.add_argument("dir"); p.add_argument("--date", required=True); p.add_argument("--type", default="hyrox"); p.add_argument("--name"); p.set_defaults(f=cmd_new)
+    p = sp.add_parser("new"); p.add_argument("dir"); p.add_argument("--date", required=True); p.add_argument("--type", default="hyrox"); p.add_argument("--name"); p.add_argument("--budget", type=float, help="target length in seconds (default 60)"); p.set_defaults(f=cmd_new)
     p = sp.add_parser("ingest"); p.add_argument("dir"); p.add_argument("--no-sheets", action="store_true"); p.set_defaults(f=cmd_ingest)
     p = sp.add_parser("data"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_data)
     p = sp.add_parser("stt"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_stt)
