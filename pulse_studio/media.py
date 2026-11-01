@@ -34,7 +34,9 @@ def build(dir: Path, proj: dict, tl: dict, only: set[str] | None = None) -> tupl
         if only is None or s["key"] in only or not tv.exists():
             vf = _vf(sc, info) + f",fps={FPS},setsar=1,tpad=stop_mode=clone:stop_duration=2"
             hw = hwaccel_args()
-            vf_hw = ("hwdownload,format=nv12," + vf) if hw else vf
+            # hw frames skip ffmpeg's autorotate: apply the display rotation by hand after download
+            turn = {90: "transpose=cclock,", 180: "hflip,vflip,", 270: "transpose=clock,"}.get(info.get("rotation", 0), "")
+            vf_hw = ("hwdownload,format=nv12," + turn + vf) if hw else vf
             cmd = [ffmpeg(), "-nostdin", "-y", "-v", "error", *hw, "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-vf", vf_hw,
                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)]
             r = subprocess.run(cmd)

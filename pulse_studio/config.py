@@ -53,10 +53,13 @@ def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 
 def probe(path: str | Path) -> dict:
     out = subprocess.run([ffprobe(), "-v", "error", "-show_entries",
-                          "format=duration:format_tags=creation_time:stream=codec_type,width,height,r_frame_rate",
+                          "format=duration:format_tags=creation_time:stream=codec_type,width,height,r_frame_rate:stream_side_data=rotation",
                           "-of", "json", str(path)], capture_output=True, text=True, check=True).stdout
     j = json.loads(out)
     v = next((s for s in j.get("streams", []) if s.get("codec_type") == "video"), {})
     fmt = j.get("format", {})
+    rot = int(next((d.get("rotation", 0) for d in v.get("side_data_list", []) if "rotation" in d), 0) or 0) % 360
+    w, h = v.get("width"), v.get("height")
+    if rot in (90, 270): w, h = h, w   # phone/camera portrait clips are stored landscape + a display rotation
     return {"duration": float(fmt.get("duration", 0) or 0), "created": (fmt.get("tags") or {}).get("creation_time"),
-            "width": v.get("width"), "height": v.get("height"), "fps": v.get("r_frame_rate")}
+            "width": w, "height": h, "rotation": rot, "fps": v.get("r_frame_rate")}
