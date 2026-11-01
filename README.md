@@ -2,6 +2,12 @@
 
 Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in project.json or `pulse-reel new --budget 90` for longer): your clips + your voice-over + the session's real numbers (Garmin HR second by second, ErgData splits, steps) rendered as transparent overlays in the climbday identity. Runs entirely on an Ubuntu laptop; no GPU needed.
 
+![frames from the first reel](docs/reel-frames.jpg)
+
+![Pulse Studio web app — clips, voice-over transcript, session data](docs/ui-top.jpg)
+
+![scene editor](docs/ui-scenes.jpg)
+
 ## Install (Ubuntu 22.04 / 24.04)
 
 ```bash
