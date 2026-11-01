@@ -27,8 +27,9 @@ echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link toke
 
 ## A new session in the web app, step by step
 
-1. **New session** (left sidebar) → the picker lists your Pulse sessions as *Today / Yesterday / Earlier* (type, start, duration, stations). Set the reel **Length** (60 s, or 70–90 for a Reel) and click **Create**. A session that already has a project shows **Open**.
+1. **New session** (left sidebar) → the picker lists your Pulse sessions as *Today / Yesterday / Earlier* (type, start, duration, stations). Set the reel **Length** (60 s, or 70–90 for a Reel) and click **Create**. A session that already has a project shows **Open**, plus **another reel** for a second project from the same workout. A workout still marked *exporting…* appears within 10 minutes; **Refresh** reloads the list.
    No Pulse session (watch not worn)? Use **Manual**: a date, the type, and tick **no Pulse data** — the reel then shows station titles and your captions, no numbers.
+   The workout is chosen here, once: a project stays tied to it. For another workout's numbers, create a new session from that workout.
 2. **Clips** box → drop the camera/phone files. **Voice-over** box → drop the recording(s): one file with all the phrases, plus optional extras such as `Warmup.m4a` (or press **● Record**).
 3. **Claude** box → **Set up the scenes from the clips and transcript, then build v1**. Claude runs Clips (contact sheets — the slow part for 4K), Data, Transcribe, writes one scene per station (clip, start point, the voice-over words, corrected caption), checks Timeline and Stills, and builds. Its log streams at the bottom; if it needs a decision (length, which shot) it stops and asks — answer in the same box.
    Prefer to edit yourself? Run **1 · Clips → 2 · Data → 3 · Transcribe**, then in **Scenes**: **+ add**, click a clip, click the first and last transcript word, fix the caption; then **4 · Timeline → 5 · Stills → 6 · Build**.
@@ -36,6 +37,8 @@ echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link toke
 5. **publish** (Claude box or the Publish step) → share link.
 
 While Claude is working, leave the step buttons and the scene editor alone (the page won't save over its edits), and keep one Pulse Studio tab open.
+
+Earlier sessions stay in the left sidebar: click one to reopen it. **Delete session** (top right of a session) removes its folder for good — clips, voice-over, transcript and builds (your original files elsewhere and the Pulse data are untouched). It asks first, and is refused while a step or Claude is running.
 
 `pulse-reel --help` lists the commands.
 
