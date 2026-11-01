@@ -55,7 +55,7 @@ docker exec whoopdash-garmin python /work/pulse-studio-server/export_session.py 
 Whisper large-v3-turbo on a 90 s voice-over (first run downloads the 1.6 GB model) ≈ 3 min · base cut (4K, VAAPI) ≈ 2 min · 1800 overlay frames ≈ 5 min · final encode ≈ 3 min.
 
 ## Who this is for
-It is built around one person's setup (a [Pulse](https://github.com) self-hosted dashboard for Garmin/WHOOP data, a HYROX watch app, Sudanese-Arabic voice-overs, the *climbday* visual identity). The engine is generic — any session with clips + a voice-over + a `data.json` in the shape of `examples/hyrox-2026-11-01/data.json` renders — but expect to change `IDENTITY` in `config.py` (fonts, colours, watermark) and the station titles in `overlay/overlay.html` for your own use.
+It is built around one person's setup (a self-hosted "Pulse" dashboard for Garmin/WHOOP data, a HYROX watch app, Sudanese-Arabic voice-overs, the *climbday* visual identity). The engine is generic — any session with clips + a voice-over + a `data.json` in the shape of `examples/hyrox-2026-11-01/data.json` renders — but expect to change `IDENTITY` in `config.py` (fonts, colours, watermark) and the station titles in `overlay/overlay.html` for your own use.
 
 ## Credits
 Music and SFX are code-generated (numpy), no licensing. Fonts via @fontsource (OFL). Built with Claude Code on 2026-11-01.
