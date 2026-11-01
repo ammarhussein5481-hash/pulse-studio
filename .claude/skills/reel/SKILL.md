@@ -25,6 +25,9 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - Title/number override: scene `title: ["KICKER","NAME","4:06","<b>2:03</b> /500M"]`.
 - Always `pulse-reel build` or `audio` after edits, read the new contact sheet, report the version number. Never overwrite an earlier version.
 
+## Web app
+`pulse-reel ui` (http://127.0.0.1:8787) edits the same `project.json`; if Ammar is using it, re-read project.json before changing anything and tell him to refresh the page after your edits.
+
 ## Delivery
 `pulse-reel publish <dir> --to mcpagent@srv:/home/mcpagent/whoop-dash/site/share/` (or `PULSE_SHARE`) → link `https://pulse.ammarhussein.cloud/share/<file>`. Curl the link back and ffprobe it before sending; a half-written file once went out.
 

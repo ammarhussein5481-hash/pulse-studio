@@ -11,7 +11,13 @@ cd pulse-studio
 echo 'export PULSE_TOKEN=<your pulse link token>' >> ~/.bashrc   # value of .linktoken on the VPS
 ```
 
-`pulse-reel --help` lists the commands. Open Claude Code in this folder and use `/reel` to drive it conversationally.
+## Two ways to use it
+
+**Web app** — `pulse-reel ui` opens http://127.0.0.1:8787 : create a session, drop the camera files and voice recording (or record the voice-over in the browser), fetch the session data, transcribe, pick a clip and the transcript words for each scene, fix captions, run stills/build with a live log, play the result and publish. Everything it does is the same CLI steps underneath, so you can mix both.
+
+**Claude Code** — open `claude` in this folder and type `/reel`; it drives the same project.json and commands conversationally ("the sled shot starts from here", "raise the music").
+
+`pulse-reel --help` lists the commands.
 
 ## A session, end to end
 
@@ -46,7 +52,7 @@ docker exec whoopdash-garmin python /work/pulse-studio-server/export_session.py 
 `crop`: `auto` (centre 9:16 from a landscape source), `full` (vertical source as is), or `w:h:x:y` for a punch-in. `vo.windows: [[a,b],[c,d]]` skips filler words. `title` overrides the on-screen kicker/name/number/sub-line. `audio.music_db`, `sfx_db`, `amb_db` set the mix.
 
 ## Speed on an i5-7300U (4 threads, no GPU)
-Whisper large-v3-turbo on a 90 s voice-over ≈ 3 min · base cut (4K, VAAPI) ≈ 2 min · 1800 overlay frames ≈ 5 min · final encode ≈ 3 min.
+Whisper large-v3-turbo on a 90 s voice-over (first run downloads the 1.6 GB model) ≈ 3 min · base cut (4K, VAAPI) ≈ 2 min · 1800 overlay frames ≈ 5 min · final encode ≈ 3 min.
 
 ## Credits
 Music and SFX are code-generated (numpy), no licensing. Fonts via @fontsource (OFL). Built with Claude Code on 2026-11-01.
