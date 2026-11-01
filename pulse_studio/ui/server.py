@@ -19,14 +19,15 @@ app = FastAPI(title="Pulse Studio")
 
 # ---------- jobs (one at a time; log lines streamed over SSE) ----------
 class Job:
-    def __init__(self, cmd: list[str], cwd: Path):
+    def __init__(self, cmd: list[str], cwd: Path, fmt=None, kind: str = "step"):
         self.id = uuid.uuid4().hex[:8]; self.cmd = cmd; self.lines: list[str] = []; self.rc: int | None = None; self.started = time.time()
-        self.proc = subprocess.Popen(cmd, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        self.fmt = fmt or (lambda l: [l]); self.kind = kind
+        self.proc = subprocess.Popen(cmd, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
                                      env={**os.environ, "PYTHONUNBUFFERED": "1"})
         threading.Thread(target=self._pump, daemon=True).start()
     def _pump(self):
         for line in self.proc.stdout:
-            self.lines.append(line.rstrip("\n"))
+            self.lines.extend(self.fmt(line.rstrip("\n")))
         self.rc = self.proc.wait()
     @property
     def running(self): return self.rc is None
@@ -106,6 +107,8 @@ def get_session(sid: str):
 async def put_project(sid: str, req: Request):
     d = _sid(sid); pj = await req.json()
     if not isinstance(pj, dict) or "scenes" not in pj: raise HTTPException(400, "not a project")
+    if CURRENT and CURRENT.running and CURRENT.kind == "claude":
+        raise HTTPException(409, "Claude is editing this project — wait for it to finish")
     project.save(d, pj); return {"ok": True}
 
 @app.post("/api/s/{sid}/upload")
@@ -159,6 +162,57 @@ async def run_step(sid: str, step: str, req: Request):
     if j.get("times") and step == "stills": cmd.append(j["times"])
     if j.get("to") and step == "publish": cmd += ["--to", j["to"]]
     CURRENT = Job(cmd, d.parent); JOBS[CURRENT.id] = CURRENT
+    return {"job": CURRENT.id}
+
+# ---------- Claude (headless Claude Code driving the /reel skill on this session) ----------
+REPO = HERE.parents[1]
+CLAUDE_TOOLS = ["Read", "Edit", "Write", "Glob", "Grep", "Skill",
+                "Bash(pulse-reel:*)", "Bash(ffprobe:*)", "Bash(ffmpeg:*)", "Bash(python3:*)", "Bash(ls:*)", "Bash(cat:*)",
+                "Bash(unzip:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(curl:*)", "Bash(ssh:*)", "Bash(scp:*)"]
+CLAUDE_SYS = ("You are running headless from the Pulse Studio web UI; Ammar reads your log there and replies in the next message. "
+              "You cannot ask interactive questions: when a decision is his (reel length, which shot, publishing), stop and end with "
+              "the question. Work only on the session folder you are given. Long steps (ingest, build) are fine to run; report the "
+              "out/ version and what changed at the end. Ammar asked for English in this app: always reply in English, short, "
+              "even if other settings say otherwise (captions stay his Arabic).")
+
+def _claude_fmt(sess_file: Path):
+    def fmt(line: str) -> list[str]:
+        try: ev = json.loads(line)
+        except ValueError: return [line] if line.strip() else []
+        if ev.get("session_id"): sess_file.write_text(ev["session_id"])
+        t = ev.get("type")
+        if t == "assistant":
+            out = []
+            for c in ev.get("message", {}).get("content", []):
+                if c.get("type") == "text" and c["text"].strip(): out.append(c["text"].strip())
+                elif c.get("type") == "tool_use":
+                    i = c.get("input", {})
+                    what = i.get("description") or i.get("command") or i.get("file_path") or i.get("skill") or i.get("pattern") or ""
+                    out.append(f"  → {c['name']}: {str(what)[:160]}")
+            return out
+        if t == "user":
+            return [f"  ! {str(c.get('content'))[:200]}" for c in ev.get("message", {}).get("content", [])
+                    if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error")]
+        if t == "result":
+            return [f"— {ev.get('num_turns', '?')} turns · {round(ev.get('duration_ms', 0) / 60000, 1)} min —"]
+        return []
+    return fmt
+
+@app.post("/api/s/{sid}/claude")
+async def ask_claude(sid: str, req: Request):
+    global CURRENT
+    d = _sid(sid); j = await req.json(); text = (j.get("prompt") or "").strip()
+    if not text: raise HTTPException(400, "empty instruction")
+    if CURRENT and CURRENT.running: raise HTTPException(409, "a job is already running")
+    claude = shutil.which("claude")
+    if not claude: raise HTTPException(500, "claude CLI not found on PATH")
+    sess_file = d / "build" / "claude_session"; sess_file.parent.mkdir(exist_ok=True)
+    if j.get("new"): sess_file.unlink(missing_ok=True)
+    rel = d.relative_to(REPO) if d.is_relative_to(REPO) else d
+    cmd = [claude, "-p", f"/reel {text}\n\n(session folder: {rel})", "--output-format", "stream-json", "--verbose",
+           "--permission-mode", "acceptEdits", "--allowedTools", *CLAUDE_TOOLS, "--add-dir", str(d), "--settings", json.dumps({"language": "english"}), "--append-system-prompt", CLAUDE_SYS]
+    if sess_file.exists() and sess_file.read_text().strip(): cmd += ["--resume", sess_file.read_text().strip()]
+    CURRENT = Job(cmd, REPO, fmt=_claude_fmt(sess_file), kind="claude"); JOBS[CURRENT.id] = CURRENT
     return {"job": CURRENT.id}
 
 @app.get("/api/jobs/{jid}")

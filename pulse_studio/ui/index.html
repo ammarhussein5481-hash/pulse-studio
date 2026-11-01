@@ -65,6 +65,7 @@ td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
 .hint{color:var(--mute);font-size:12px} .warn{color:var(--warn)}
 .empty{padding:60px;text-align:center;color:var(--mute)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px} @media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+.claude textarea{flex:1;min-height:52px;resize:vertical}
 .rec{width:12px;height:12px;border-radius:50%;background:#e33;display:inline-block;animation:p 1s infinite}
 </style>
 </head>
@@ -84,7 +85,7 @@ td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
 
 <script>
 const $=id=>document.getElementById(id);
-let S=null, SID=null, selScene=0, selWord=null, job=null, rec=null, recChunks=[];
+let S=null, SID=null, selScene=0, selWord=null, job=null, rec=null, recChunks=[], askDraft='';
 const api=async(url,opt={})=>{const r=await fetch(url,opt);if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()};
 const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -120,6 +121,13 @@ function render(){
   </div>
   <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
   ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
+
+  <section class="claude"><h2>Claude <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span></h2>
+    <div class="row"><textarea id="ask" placeholder="e.g. set up the scenes and build v1 · the sled shot starts at 0:22 · lower the music · publish" oninput="askDraft=this.value" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))ask()">${esc(askDraft)}</textarea>
+      <div style="display:flex;flex-direction:column;gap:6px"><button onclick="ask()" ${job?'disabled':''}>Ask Claude</button>
+      <label class="hint"><input type="checkbox" id="asknew"> new conversation</label></div></div>
+    <div class="row" style="margin-top:8px">${['Set up the scenes from the clips and transcript, then build v1','Build a new version','Publish the latest version'].map(q=>`<button class="ghost sm" onclick="ask(${esc(JSON.stringify(q))})" ${job?'disabled':''}>${esc(q)}</button>`).join('')}</div>
+  </section>
 
   <div class="grid2">
   <section><h2>Clips <span class="pill">${S.raw.length} in raw/</span></h2>
@@ -208,7 +216,7 @@ function move(i,d){const a=p().scenes; const j=i+d; if(j<0||j>=a.length) return;
 function useClip(f){if(!p().scenes.length) addScene(); sc(selScene).clip=f; save()}
 function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return; v.file=name; delete v.windows;
   if(selWord==null||v.from==null||s<v.from){v.from=s;delete v.to;selWord=s}else{v.to=e;selWord=null} save()}
-let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}; now?await go():saveT=setTimeout(go,400)}
+let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
 function pick(kind){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept=kind==='raw'?'video/*,.mov,.mp4':'audio/*,.m4a'; i.onchange=()=>upload(kind,i.files); i.click()}
@@ -235,6 +243,14 @@ async function run(step,extra){
   if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
   try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';
     const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
+    $('logstate').textContent='running'}
+  catch(e){alert(e.message)}
+}
+async function ask(text){
+  if(job){showLog(); return}
+  text=(text||$('ask').value).trim(); if(!text) return;
+  try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); showLog('Claude · '+text.slice(0,80)); $('logpre').textContent='';
+    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
     $('logstate').textContent='running'}
   catch(e){alert(e.message)}
 }
