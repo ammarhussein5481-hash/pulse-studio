@@ -103,7 +103,7 @@ const fmt=t=>{t=Math.round(t);return `${Math.floor(t/60)}:${String(t%60).padStar
 
 async function loadSessions(){
   const r=await api('/api/sessions'); $('root').textContent=r.root;
-  $('sessions').innerHTML=r.sessions.map(s=>`<a class="sess ${s.id===SID?'on':''}" onclick="open('${s.id}')">${esc(s.id)}<small>${s.scenes} scenes · ${s.outs} builds</small></a>`).join('')||'<p class="hint">no sessions yet</p>';
+  $('sessions').innerHTML=r.sessions.map(s=>`<a class="sess ${s.id===SID?'on':''}" onclick="openSession('${s.id}')">${esc(s.id)}<small>${s.scenes} scenes · ${s.outs} builds</small></a>`).join('')||'<p class="hint">no sessions yet</p>';
 }
 async function newSession(){
   const dlg=$('newdlg'); dlg.showModal(); $('pulselist').innerHTML='<p class="hint">loading Pulse sessions …</p>';
@@ -119,12 +119,14 @@ async function loadPulse(refresh){
         return `<div class="prow ${s.exported||s.project?'':'off'}"><b>${day}</b><span class="pill or">${esc(s.type)}</span><span>${st}</span><span>${fmt(s.total_s||0)}</span><span class="hint">${(s.stations||[]).length} stations${s.exported&&!s.hr?' · HR pending':''}</span><span style="flex:1"></span>${act}</div>`}).join('')).join('')||'<p class="hint">no sessions in the Pulse index yet</p>';}
   catch(e){$('pulselist').innerHTML=`<p class="warn">Pulse list unavailable: ${esc(e.message)}</p><p class="hint">Use a manual date below.</p>`}
 }
-async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pulse_id:id,budget:+$('mbudget').value||60})); $('newdlg').close(); await loadSessions(); await open(r.id); run('data')}catch(e){alert(e.message)}}
-function pickOpen(id){$('newdlg').close(); open(id)}
+async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pulse_id:id,budget:+$('mbudget').value||60})); $('newdlg').close(); await loadSessions(); await openSession(r.id); run('data')}catch(e){alert(e.message)}}
+function pickOpen(id){$('newdlg').close(); openSession(id)}
 async function pickManual(){const date=$('mdate').value, type=$('mtype').value||'hyrox', nodata=$('mnodata').checked;
-  try{const r=await api('/api/sessions',J('POST',{date,type,budget:+$('mbudget').value||60,no_data:nodata})); $('newdlg').close(); await loadSessions(); await open(r.id); if(!nodata) run('data')}catch(e){alert(e.message)}}
-async function open(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions()}
+  try{const r=await api('/api/sessions',J('POST',{date,type,budget:+$('mbudget').value||60,no_data:nodata})); $('newdlg').close(); await loadSessions(); await openSession(r.id); if(!nodata) run('data')}catch(e){alert(e.message)}}
+async function openSession(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions()}
 async function refresh(){if(SID){S=await api('/api/s/'+SID); render()}}
+async function delSession(){if(!confirm(`Delete ${SID} and everything in it (clips, voice-over, builds)? This cannot be undone.`)) return;
+  try{clearTimeout(saveT); await api('/api/s/'+SID,{method:'DELETE'}); SID=null; S=null; $('main').innerHTML='<div class="empty">Pick a session or create one.</div>'; loadSessions(); toast('session deleted')}catch(e){alert(e.message)}}
 
 const HYROX=['skierg','row','farmers','lunges','wall_balls','burpee_bj','sled_push','run'];
 function stationKeys(){const d=S.data||{}; let o=(d._session&&d._session.order)||Object.keys(d).filter(k=>!k.startsWith('_')); if(d._session&&d._session.none&&S.project.session.type==='hyrox') o=[...new Set([...o,...HYROX])]; return ['intro','warmup',...o,'closing']}
@@ -141,6 +143,7 @@ function render(){
     <label class="hint">Length <input type="number" value="${p.vo.budget_s}" onchange="p().vo.budget_s=+this.value;save()"> s</label>
     <label class="hint">Data <select onchange="p().session.source=this.value;save()"><option ${p.session.source==='pulse'?'selected':''}>pulse</option><option ${p.session.source==='file'?'selected':''}>file</option></select></label>
     ${S.env.token?'':'<span class="pill warn">PULSE_TOKEN not set</span>'}
+    <button class="ghost sm" onclick="delSession()" ${job?'disabled':''}>Delete session</button>
   </div>
   <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
   ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
@@ -282,7 +285,7 @@ function showLog(t){$('log').classList.add('open'); if(t) $('logtitle').textCont
 function logLine(l){const pre=$('logpre'); pre.textContent+=l+'\n'; pre.scrollTop=pre.scrollHeight}
 function play(f){$('player').src=`/files/${SID}/out/${f}`; $('player').play()}
 
-loadSessions().then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) open(r.sessions[0].id)});
+loadSessions().then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) openSession(r.sessions[0].id)});
 </script>
 </body>
 </html>

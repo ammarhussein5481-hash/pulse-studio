@@ -169,6 +169,12 @@ def delete_file(sid: str, kind: str, name: str):
     if not sub or not p.exists(): raise HTTPException(404)
     p.unlink(); return {"ok": True}
 
+@app.delete("/api/s/{sid}")
+def delete_session(sid: str):
+    d = _sid(sid)
+    if CURRENT and CURRENT.running: raise HTTPException(409, "a job is running — stop it first")
+    shutil.rmtree(d); return {"ok": True}
+
 @app.post("/api/s/{sid}/run/{step}")
 async def run_step(sid: str, step: str, req: Request):
     global CURRENT
