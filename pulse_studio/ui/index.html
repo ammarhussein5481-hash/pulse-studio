@@ -148,9 +148,9 @@ function render(){
   <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
   ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
 
-  <section class="claude"><h2>Claude <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span></h2>
+  <section class="claude"><h2>Assistant <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span></h2>
     <div class="row"><textarea id="ask" placeholder="e.g. set up the scenes and build v1 · the sled shot starts at 0:22 · lower the music · publish" oninput="askDraft=this.value" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))ask()">${esc(askDraft)}</textarea>
-      <div style="display:flex;flex-direction:column;gap:6px"><button onclick="ask()" ${job?'disabled':''}>Ask Claude</button>
+      <div style="display:flex;flex-direction:column;gap:6px"><button onclick="ask()" ${job?'disabled':''}>Ask</button>
       <label class="hint"><input type="checkbox" id="asknew"> new conversation</label></div></div>
     <div class="row" style="margin-top:8px">${['Set up the scenes from the clips and transcript, then build v1','Build a new version','Publish the latest version'].map(q=>`<button class="ghost sm" onclick="ask(${esc(JSON.stringify(q))})" ${job?'disabled':''}>${esc(q)}</button>`).join('')}</div>
   </section>
@@ -275,7 +275,7 @@ async function run(step,extra){
 async function ask(text){
   if(job){showLog(); return}
   text=(text||$('ask').value).trim(); if(!text) return;
-  try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); showLog('Claude · '+text.slice(0,80)); $('logpre').textContent='';
+  try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); showLog('Assistant · '+text.slice(0,80)); $('logpre').textContent='';
     const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
     $('logstate').textContent='running'}
   catch(e){alert(e.message)}

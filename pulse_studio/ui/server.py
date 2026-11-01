@@ -129,7 +129,7 @@ async def put_project(sid: str, req: Request):
     d = _sid(sid); pj = await req.json()
     if not isinstance(pj, dict) or "scenes" not in pj: raise HTTPException(400, "not a project")
     if CURRENT and CURRENT.running and CURRENT.kind == "claude":
-        raise HTTPException(409, "Claude is editing this project — wait for it to finish")
+        raise HTTPException(409, "the assistant is editing this project — wait for it to finish")
     project.save(d, pj); return {"ok": True}
 
 @app.post("/api/s/{sid}/upload")

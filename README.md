@@ -4,7 +4,7 @@ Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in pro
 
 ![frames from the first reel](docs/reel-frames.jpg)
 
-![Pulse Studio web app — Claude panel, clips, voice-over transcript](docs/ui-top.jpg)
+![Pulse Studio web app — Assistant panel, clips, voice-over transcript](docs/ui-top.jpg)
 
 ![new session — pick today's, yesterday's or an earlier Pulse session](docs/ui-picker.jpg)
 
@@ -21,9 +21,9 @@ echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link toke
 
 ## Two ways to use it
 
-**Web app** — `pulse-reel ui` opens http://127.0.0.1:8787 : pick a Pulse session, drop the camera files and voice recording (or record the voice-over in the browser), and either let the **Claude panel** do the editing or do it yourself (pick a clip and the transcript words for each scene, fix captions), then run stills/build with a live log, play the result and publish. Everything it does is the same CLI steps underneath, so you can mix both.
+**Web app** — `pulse-reel ui` opens http://127.0.0.1:8787 : pick a Pulse session, drop the camera files and voice recording (or record the voice-over in the browser), and either let the **Assistant** panel do the editing or do it yourself (pick a clip and the transcript words for each scene, fix captions), then run stills/build with a live log, play the result and publish. Everything it does is the same CLI steps underneath, so you can mix both.
 
-**Claude Code** — the web app's Claude panel runs headless `claude -p "/reel …"` on the open session (it needs the `claude` CLI logged in); or open `claude` in this folder and type `/reel` to drive the same project.json and commands conversationally ("the sled shot starts from here", "raise the music").
+**The Assistant panel / Claude Code** — the web app's Assistant panel currently runs headless `claude -p "/reel …"` on the open session (it needs the `claude` CLI logged in); or open `claude` in this folder and type `/reel` to drive the same project.json and commands conversationally ("the sled shot starts from here", "raise the music").
 
 ## A new session in the web app, step by step
 
@@ -31,12 +31,12 @@ echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link toke
    No Pulse session (watch not worn)? Use **Manual**: a date, the type, and tick **no Pulse data** — the reel then shows station titles and your captions, no numbers.
    The workout is chosen here, once: a project stays tied to it. For another workout's numbers, create a new session from that workout.
 2. **Clips** box → drop the camera/phone files. **Voice-over** box → drop the recording(s): one file with all the phrases, plus optional extras such as `Warmup.m4a` (or press **● Record**).
-3. **Claude** box → **Set up the scenes from the clips and transcript, then build v1**. Claude runs Clips (contact sheets — the slow part for 4K), Data, Transcribe, writes one scene per station (clip, start point, the voice-over words, corrected caption), checks Timeline and Stills, and builds. Its log streams at the bottom; if it needs a decision (length, which shot) it stops and asks — answer in the same box.
+3. **Assistant** box → **Set up the scenes from the clips and transcript, then build v1**. The assistant runs Clips (contact sheets — the slow part for 4K), Data, Transcribe, writes one scene per station (clip, start point, the voice-over words, corrected caption), checks Timeline and Stills, and builds. Its log streams at the bottom; if it needs a decision (length, which shot) it stops and asks — answer in the same box.
    Prefer to edit yourself? Run **1 · Clips → 2 · Data → 3 · Transcribe**, then in **Scenes**: **+ add**, click a clip, click the first and last transcript word, fix the caption; then **4 · Timeline → 5 · Stills → 6 · Build**.
-4. **v1** appears under the builds — play it. Ask for changes in the Claude box ("the sled shot starts at 0:22", "use IMG_8628 for burpees", "music lower"); every change is a new version, older ones are kept.
-5. **publish** (Claude box or the Publish step) → share link.
+4. **v1** appears under the builds — play it. Ask for changes in the Assistant box ("the sled shot starts at 0:22", "use IMG_8628 for burpees", "music lower"); every change is a new version, older ones are kept.
+5. **publish** (Assistant box or the Publish step) → share link.
 
-While Claude is working, leave the step buttons and the scene editor alone (the page won't save over its edits), and keep one Pulse Studio tab open.
+While the assistant is working, leave the step buttons and the scene editor alone (the page won't save over its edits), and keep one Pulse Studio tab open.
 
 Earlier sessions stay in the left sidebar: click one to reopen it. **Delete session** (top right of a session) removes its folder for good — clips, voice-over, transcript and builds (your original files elsewhere and the Pulse data are untouched). It asks first, and is refused while a step or Claude is running.
 
