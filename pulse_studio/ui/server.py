@@ -19,11 +19,11 @@ app = FastAPI(title="Pulse Studio")
 
 # ---------- jobs (one at a time; log lines streamed over SSE) ----------
 class Job:
-    def __init__(self, cmd: list[str], cwd: Path, fmt=None, kind: str = "step"):
+    def __init__(self, cmd: list[str], cwd: Path, fmt=None, kind: str = "step", env: dict | None = None):
         self.id = uuid.uuid4().hex[:8]; self.cmd = cmd; self.lines: list[str] = []; self.rc: int | None = None; self.started = time.time()
         self.fmt = fmt or (lambda l: [l]); self.kind = kind
         self.proc = subprocess.Popen(cmd, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-                                     env={**os.environ, "PYTHONUNBUFFERED": "1"})
+                                     env={**os.environ, "PYTHONUNBUFFERED": "1", **(env or {})})
         threading.Thread(target=self._pump, daemon=True).start()
     def _pump(self):
         for line in self.proc.stdout:
@@ -198,8 +198,9 @@ CLAUDE_TOOLS = ["Read", "Edit", "Write", "Glob", "Grep", "Skill",
                 "Bash(unzip:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(curl:*)", "Bash(ssh:*)", "Bash(scp:*)"]
 CLAUDE_SYS = ("You are running headless from the Pulse Studio web UI; Ammar reads your log there and replies in the next message. "
               "You cannot ask interactive questions: when a decision is his (reel length, which shot, publishing), stop and end with "
-              "the question. Work only on the session folder you are given. Long steps (ingest, build) are fine to run; report the "
-              "out/ version and what changed at the end. Ammar asked for English in this app: always reply in English, short, "
+              "the question. Work only on the session folder you are given. Run long steps (ingest, build ~12 min) in the FOREGROUND "
+              "and wait for them — never in the background: this run ends when you stop, nothing wakes you later. Then read the "
+              "contact sheet and report the out/ version and what changed at the end. Ammar asked for English in this app: always reply in English, short, "
               "even if other settings say otherwise (captions stay his Arabic).")
 
 def _claude_fmt(sess_file: Path):
@@ -239,7 +240,8 @@ async def ask_claude(sid: str, req: Request):
     cmd = [claude, "-p", f"/reel {text}\n\n(session folder: {rel})", "--output-format", "stream-json", "--verbose",
            "--permission-mode", "acceptEdits", "--allowedTools", *CLAUDE_TOOLS, "--add-dir", str(d), "--settings", json.dumps({"language": "english"}), "--append-system-prompt", CLAUDE_SYS]
     if sess_file.exists() and sess_file.read_text().strip(): cmd += ["--resume", sess_file.read_text().strip()]
-    CURRENT = Job(cmd, REPO, fmt=_claude_fmt(sess_file), kind="claude"); JOBS[CURRENT.id] = CURRENT
+    long = {"BASH_DEFAULT_TIMEOUT_MS": "2700000", "BASH_MAX_TIMEOUT_MS": "2700000"}   # a build must fit in one foreground command
+    CURRENT = Job(cmd, REPO, fmt=_claude_fmt(sess_file), kind="claude", env=long); JOBS[CURRENT.id] = CURRENT
     return {"job": CURRENT.id}
 
 @app.get("/api/jobs/{jid}")
