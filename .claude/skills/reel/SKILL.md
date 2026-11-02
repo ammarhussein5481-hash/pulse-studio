@@ -36,6 +36,7 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - "Use this video for X": set `clip`; `crop: "full"` if he wants the whole frame even when he's small.
 - "Use my music / this track": `audio.music_file` = a file name in the music library (`~/.pulse-studio/music/`, shared by all sessions; the web app uploads there), `audio.music_in` = seconds to start from; `"generated"` = the code-made track. Then `pulse-reel audio`.
 - "Replace/delete a clip": the web app does it in place (same file name keeps the scenes valid, stale cuts are dropped); from the CLI just overwrite the file in `raw/` and rebuild with `--only` the scenes that use it.
+- "Instagram music": it can only be added in the Instagram app at posting time. Set `audio.music = false` (IG music mode: voice + SFX stay), remix, and give him 3 tracks from `music.ig_suggestions(type, budget/scenes)` (shown in the web app; the Telegram post copy includes them when music is off). Prefer what is trending in his picker over the list.
 - "Raise/lower the music/SFX": `audio.music_db` / `sfx_db` ±5 then `pulse-reel audio <dir>` (audio-only remix, ~3 min).
 - "Mute the clip sound at the start": that scene `amb_db: -90`. Keep wall-ball / sled scenes at −2 dB when he likes the real sound.
 - Caption wording: edit `caption`; the words re-map to the transcript timings automatically.

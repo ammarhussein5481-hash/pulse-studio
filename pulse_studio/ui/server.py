@@ -65,7 +65,8 @@ def _state(d: Path) -> dict:
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
-            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines, "frames": (b / "frames").exists(),
+            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines,
+            "ig": music.ig_suggestions(proj["session"].get("type", "hyrox"), (float(proj["vo"].get("budget_s", 60)) / max(1, len(proj["scenes"]))) if proj["scenes"] else None), "frames": (b / "frames").exists(),
             "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", ""), "tg": bool(os.environ.get("PULSE_TG_TOKEN"))}}
 
 # ---------- routes ----------

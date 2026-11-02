@@ -184,7 +184,9 @@ def post_copy(proj: dict, data: dict) -> str:
     closing = next((x for x in scs if x["key"] == "closing"), {})
     tags = {"hyrox": "#hyrox #hyroxtraining #riyadh #garmin #pulse", "run": "#running #riyadhrunners #garmin #pulse", "ride": "#cycling #riyadh #garmin #pulse",
             "strength": "#strength #gym #riyadh #garmin #pulse"}.get(kind, "#training #garmin #pulse")
-    parts = [ar.strip(), closing.get("script", "").strip(), "", closing.get("caption_en", "").strip(), "", tags]
+    ig = music.ig_suggestions(kind, float(proj["vo"].get("budget_s", 60)) / max(1, len(scs)), n=3)
+    parts = [ar.strip(), closing.get("script", "").strip(), "", closing.get("caption_en", "").strip(), "", tags, "",
+             "🎵 IG music: " + " · ".join(f"{t['title']} – {t['artist']}" for t in ig["tracks"]) if not proj["audio"].get("music", True) else ""]
     return "\n".join(x for x in parts if x is not None).strip()
 
 def cmd_send(a):

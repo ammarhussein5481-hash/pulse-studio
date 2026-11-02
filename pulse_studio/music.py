@@ -7,6 +7,34 @@ BEAT = 0.5
 def generate(VER, OUT):
     _generate(float(VER), str(OUT))
 
+# Instagram music: added in the app at posting time (not licensable for the file). Curated search terms by workout and pace.
+# Availability differs by country (Saudi library ≠ US); the app shows what exists — these are starting points, not a promise.
+IG_TRACKS = {
+    "hyrox": [("Till I Collapse", "Eminem", 171, "grind"), ("Power", "Kanye West", 154, "heavy"), ("Can't Hold Us", "Macklemore & Ryan Lewis", 146, "hype"),
+              ("Remember the Name", "Fort Minor", 85, "grind"), ("Believer", "Imagine Dragons", 125, "drive"), ("Run Boy Run", "Woodkid", 148, "epic"),
+              ("Eye of the Tiger", "Survivor", 109, "classic"), ("Stronger", "Kanye West", 104, "drive"), ("Unstoppable", "Sia", 174, "anthem"),
+              ("Industry Baby", "Lil Nas X", 150, "hype"), ("Lose Yourself", "Eminem", 171, "focus"), ("Hall of Fame", "The Script", 85, "anthem")],
+    "run":   [("Run Boy Run", "Woodkid", 148, "epic"), ("Can't Stop", "Red Hot Chili Peppers", 91, "drive"), ("Born to Run", "Bruce Springsteen", 147, "classic"),
+              ("Titanium", "David Guetta ft. Sia", 126, "lift"), ("Levitating", "Dua Lipa", 103, "light"), ("Blinding Lights", "The Weeknd", 171, "cadence"),
+              ("Don't Stop Me Now", "Queen", 156, "joy"), ("Runnin' (Lose It All)", "Naughty Boy ft. Beyoncé", 100, "feel")],
+    "ride":  [("Bicycle Race", "Queen", 140, "fun"), ("Midnight City", "M83", 105, "flow"), ("Starboy", "The Weeknd", 186, "night"), ("Electric Feel", "MGMT", 103, "flow"),
+              ("Feel Good Inc.", "Gorillaz", 139, "groove"), ("A Sky Full of Stars", "Coldplay", 125, "lift")],
+    "strength": [("Power", "Kanye West", 154, "heavy"), ("Till I Collapse", "Eminem", 171, "grind"), ("Sail", "AWOLNATION", 119, "heavy"), ("Headstrong", "Trapt", 120, "rock"),
+                 ("Centuries", "Fall Out Boy", 88, "anthem"), ("Numb", "Linkin Park", 110, "focus")],
+}
+IG_SEARCHES = {"hyrox": ["hyrox", "gym phonk", "workout motivation", "Arabic trap"], "run": ["running motivation", "marathon", "cadence 170"],
+               "ride": ["cycling", "road trip", "sunrise"], "strength": ["gym phonk", "heavy workout", "lifting"]}
+
+def ig_suggestions(kind: str, cut_s: float | None = None, n: int = 6) -> dict:
+    """Tracks to search for in Instagram's audio picker. cut_s = average seconds between scene cuts → preferred tempo:
+    fast cuts (<5 s) want 140+ BPM, slow cuts (>8 s) 90–125; everything else is fine with 120–150."""
+    kind = kind if kind in IG_TRACKS else "hyrox"
+    lo, hi = (140, 200) if cut_s and cut_s < 5 else (85, 125) if cut_s and cut_s > 8 else (100, 175)
+    rows = IG_TRACKS[kind]; fit = [t for t in rows if lo <= t[2] <= hi] or rows
+    tracks = [{"title": t[0], "artist": t[1], "bpm": t[2], "mood": t[3], "search": f"{t[0]} {t[1]}"} for t in (fit + [t for t in rows if t not in fit])[:n]]
+    return {"tracks": tracks, "searches": IG_SEARCHES.get(kind, []), "bpm": [lo, hi],
+            "tip": "Add it in Instagram when posting (Add audio → search). Turn our music off first (IG music mode) so the two don't clash; the voice and SFX stay."}
+
 def library_dir():
     from .config import HOME
     d = HOME / "music"; d.mkdir(parents=True, exist_ok=True); return d
