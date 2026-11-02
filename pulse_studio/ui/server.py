@@ -63,7 +63,7 @@ def _state(d: Path) -> dict:
     stills = sorted(f.name for f in (b / "stills").glob("*.jpg")) + sorted(f.name for f in (b / "stills").glob("*.png")) if (b / "stills").exists() else []
     lines = {f.stem: round(config.probe(f)["duration"], 1) for f in (d / "vo" / "lines").glob("*.m4a")} if (d / "vo" / "lines").exists() else {}
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
-    return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
+    return {"id": d.name, "project": proj, "accents": config.ACCENTS, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
             "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines,
             "ig": music.ig_suggestions(proj["session"].get("type", "hyrox"), (float(proj["vo"].get("budget_s", 60)) / max(1, len(proj["scenes"]))) if proj["scenes"] else None), "frames": (b / "frames").exists(),
@@ -388,6 +388,8 @@ HEAVY = re.compile(r"set ?up|from scratch|new session|\bv1\b", re.I)
 def _model(text: str) -> str:
     return os.environ.get("PULSE_AI_MODEL") or ("claude-opus-5-5" if HEAVY.search(text) else "claude-sonnet-5-5")
 
+ASSISTANT_LOG = "assistant.log"
+
 def _claude_fmt(sess_file: Path):
     seen = {}
     def fmt(line: str) -> list[str]:
@@ -431,8 +433,25 @@ async def ask_claude(sid: str, req: Request):
            "--permission-mode", "acceptEdits", "--allowedTools", *CLAUDE_TOOLS, "--add-dir", str(d), "--settings", json.dumps({"language": "english"}), "--append-system-prompt", CLAUDE_SYS]
     if sess_file.exists() and sess_file.read_text().strip(): cmd += ["--resume", sess_file.read_text().strip()]
     long = {"BASH_DEFAULT_TIMEOUT_MS": "2700000", "BASH_MAX_TIMEOUT_MS": "2700000"}   # a build must fit in one foreground command
-    CURRENT = Job(cmd, REPO, fmt=_claude_fmt(sess_file), kind="claude", env=long); JOBS[CURRENT.id] = CURRENT
+    log = d / "build" / ASSISTANT_LOG; base = _claude_fmt(sess_file)
+    with log.open("a", encoding="utf-8") as f: f.write(("— new conversation —\n" if j.get("new") else "") + f"▶ You: {text}\n")
+    start = log.stat().st_size
+    def fmt(line: str) -> list[str]:   # keep what the page shows on disk, so a refresh or restart doesn't lose it
+        out = base(line)
+        if out:
+            with log.open("a", encoding="utf-8") as f: f.write("\n".join(out) + "\n")
+        return out
+    CURRENT = Job(cmd, REPO, fmt=fmt, kind="claude", env=long); JOBS[CURRENT.id] = CURRENT; CURRENT.sid = sid; CURRENT.log_start = start
     return {"job": CURRENT.id}
+
+@app.get("/api/s/{sid}/assistant")
+def assistant_log(sid: str):
+    """The Assistant conversation so far, and its running job if any. While one runs, its lines come from the job's stream, so `text` stops where it started."""
+    log = _sid(sid) / "build" / ASSISTANT_LOG; running = CURRENT if CURRENT and CURRENT.running and CURRENT.kind == "claude" and getattr(CURRENT, "sid", None) == sid else None
+    if not log.exists(): return {"text": "", "job": running.id if running else None}
+    data = log.read_bytes()
+    if running: data = data[:running.log_start]
+    return {"text": data[-400_000:].decode("utf-8", errors="ignore"), "job": running.id if running else None}
 
 @app.get("/api/jobs/{jid}")
 def job(jid: str):
@@ -497,8 +516,10 @@ def preset_apply(sid: str, name: str):
 def thumb(sid: str, clip: str, t: float = 0.0):
     d = _sid(sid)
     if not (d / "raw" / Path(clip).name).exists(): raise HTTPException(404)
-    try: return FileResponse(ingest.thumb(d / "build", Path(clip).name, max(0.0, t)))
+    try: f = ingest.thumb(d / "build", Path(clip).name, max(0.0, t))
     except Exception: raise HTTPException(404)
+    if not Path(f).exists(): raise HTTPException(404, f"no frame at {t}s in {clip}")   # in-point past the end of the clip
+    return FileResponse(f)
 
 @app.get("/files/{sid}/{path:path}")
 def files(sid: str, path: str):

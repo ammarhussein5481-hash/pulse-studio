@@ -72,6 +72,8 @@ dialog{background:var(--bg2);color:var(--bone);border:1px solid var(--line);bord
 dialog::backdrop{background:rgba(0,0,0,.6)} .grp{font-size:14px;color:var(--mute);margin:14px 0 6px}
 .prow{display:flex;gap:10px;align-items:center;padding:7px 8px;border-top:1px solid var(--line)} .prow.off{opacity:.5}
 .claude textarea{flex:1;min-height:52px;resize:vertical}
+.askpre{margin:10px 0 0;padding:10px 12px;max-height:46vh;overflow:auto;background:#070707;border:1px solid var(--line);border-radius:6px;font:12px/1.55 ui-monospace,monospace;color:#cfc9bf;white-space:pre-wrap;overflow-wrap:anywhere}
+.askpre:empty{display:none}
 .rec{width:12px;height:12px;border-radius:50%;background:#e33;display:inline-block;animation:p 1s infinite}
 </style>
 </head>
@@ -112,6 +114,7 @@ const $=id=>document.getElementById(id);
 let S=null, SID=null, selScene=0, selWord=null, job=null, rec=null, recChunks=[], askDraft='';
 const api=async(url,opt={})=>{const r=await fetch(url,opt);if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()};
 const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+function setAccent(v){p().accent=v==='orange'?null:v; save(true)}
 async function openSkill(){try{const j=await api('/api/skill'); $('skillpath').textContent=j.path; $('skilltext').textContent=j.text; $('skilldlg').showModal(); $('skilltext').scrollTop=0}catch(e){alert(e.message)}}
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=t=>{t=Math.round(t);return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
@@ -138,7 +141,7 @@ async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pul
 function pickOpen(id){$('newdlg').close(); openSession(id)}
 async function pickManual(){const date=$('mdate').value, type=$('mtype').value||'hyrox', nodata=$('mnodata').checked;
   try{const r=await api('/api/sessions',J('POST',{date,type,budget:+$('mbudget').value||60,no_data:nodata})); $('newdlg').close(); await loadSessions(); await openSession(r.id); if(!nodata) run('data')}catch(e){alert(e.message)}}
-async function openSession(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions()}
+async function openSession(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions(); restoreAssistant(id)}
 async function refresh(){if(SID){S=await api('/api/s/'+SID); render()}}
 async function delSession(){if(!confirm(`Delete ${SID} and everything in it (clips, voice-over, builds)? This cannot be undone.`)) return;
   try{clearTimeout(saveT); await api('/api/s/'+SID,{method:'DELETE'}); SID=null; S=null; $('main').innerHTML='<div class="empty">Pick a session or create one.</div>'; loadSessions(); toast('session deleted')}catch(e){alert(e.message)}}
@@ -159,6 +162,7 @@ function render(){
     <span style="flex:1"></span>
     <label class="hint">Length <input type="number" value="${p.vo.budget_s}" onchange="p().vo.budget_s=+this.value;save()"> s</label>
     ${(()=>{const sg=tl?.suggest||(p.vo.suggested_s?{best:p.vo.suggested_s}:null); if(!sg) return ''; const diff=sg.best!==+p.vo.budget_s; return `<span class="pill ${diff?'warn':''}" title="${sg.options?sg.options.map(o=>o.len+'s ×'+o.tempo+(o.fits_story?' Story':' Reel')).join(' · '):''}${sg.cut_for_story?' — for 60 s drop ~'+sg.cut_for_story+'s of speech':''}">suggested ${sg.best}s${sg.speech?' · speech '+sg.speech+'s':''}</span>${diff?`<button class="ghost sm" onclick="p().vo.budget_s=${sg.best};save()">use</button>`:''}`})()}
+    ${(()=>{const A=S.accents||{}, cur=p.accent||'orange', known=cur in A; return `<label class="hint" title="colour of all the orange titles, numbers, diagrams and highlighted caption words. It shows in Stills, Preview and the next build">Colour <select onchange="setAccent(this.value)">${Object.keys(A).map(n=>`<option ${n===cur?'selected':''}>${n}</option>`).join('')}${known?'':`<option selected value="${esc(cur)}">custom</option>`}</select> <input type="color" value="${esc(A[cur]||cur)}" onchange="setAccent(this.value)" style="width:34px;padding:0;vertical-align:middle"></label>`})()}
     <label class="hint">Data <select onchange="p().session.source=this.value;save()"><option ${p.session.source==='pulse'?'selected':''}>pulse</option><option ${p.session.source==='file'?'selected':''}>file</option></select></label>
     <label class="hint">preset <select id="presel"><option value="">—</option>${(PRESETS||[]).map(n=>`<option>${esc(n)}</option>`).join('')}</select></label>
     <span class="row" style="gap:4px"><button class="ghost sm" onclick="applyPreset()">Apply</button><button class="ghost sm" onclick="savePreset()">Save as…</button><button class="ghost sm" onclick="deletePreset()" title="delete the selected preset">Delete</button></span>
@@ -168,10 +172,11 @@ function render(){
   <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
   ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
 
-  <section class="claude"><h2>Assistant <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span></h2>
+  <section class="claude"><h2>Assistant <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span>${job&&job.step==='claude'?' <button class="ghost sm" onclick="stopJob()">Stop</button>':''}</h2>
     <div class="row"><textarea id="ask" placeholder="e.g. set up the scenes and build v1 · the sled shot starts at 0:22 · lower the music · publish" oninput="askDraft=this.value" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))ask()">${esc(askDraft)}</textarea>
       <div style="display:flex;flex-direction:column;gap:6px"><button onclick="ask()" ${job?'disabled':''}>Ask</button>
       <label class="hint"><input type="checkbox" id="asknew"> new conversation</label></div></div>
+    <div id="askslot"></div>
     <div class="row" style="margin-top:8px">${['Set up the scenes from the clips and transcript, then build v1','Build a new version','Publish the latest version'].map(q=>`<button class="ghost sm" onclick="ask(${esc(JSON.stringify(q))})" ${job?'disabled':''}>${esc(q)}</button>`).join('')}</div>
   </section>
 
@@ -256,6 +261,7 @@ function render(){
       ${S.outs[S.outs.length-1].sheet?`<img style="width:100%;margin-top:8px;border-radius:6px" src="/files/${SID}/out/${S.outs[S.outs.length-1].sheet}">`:''}</div></div>`
       :'<p class="hint">nothing built yet</p>'}
   </section>`;
+  { const slot=$('askslot'); if(slot) slot.appendChild(askEl); askEl.scrollTop=askScroll; }
   for(const k of ['raw','vo']){const el=$('drop'+k)||document.querySelectorAll('.drop')[k==='raw'?0:1]; if(!el) continue;
     el.ondragover=e=>{e.preventDefault();el.classList.add('over')}; el.ondragleave=()=>el.classList.remove('over');
     el.ondrop=e=>{e.preventDefault();el.classList.remove('over');upload(k,e.dataTransfer.files)}}
@@ -393,10 +399,22 @@ async function run(step,extra){
 async function ask(text){
   if(job){showLog(); return}
   text=(text||$('ask').value).trim(); if(!text) return;
-  try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); showLog('Assistant · '+text.slice(0,80)); $('logpre').textContent='';
-    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
-    $('logstate').textContent='running'}
+  try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); await restoreAssistant(SID)}
   catch(e){alert(e.message)}
+}
+// the conversation is kept on the server and shown under the Ask box: back after a refresh, and a running job is picked back up
+const askEl=document.createElement('pre'); askEl.className='askpre'; let askES=null, askOwner=null, askScroll=0;
+askEl.addEventListener('scroll',()=>{askScroll=askEl.scrollTop});
+function askLine(l){const end=askEl.scrollHeight-askEl.scrollTop-askEl.clientHeight<40; askEl.textContent+=l+'\n'; if(end) askEl.scrollTop=askEl.scrollHeight}
+async function restoreAssistant(id){
+  const a=await api(`/api/s/${id}/assistant`); if(id!==SID) return;
+  if(askES&&askOwner===id){askES.close(); askES=null}
+  askEl.textContent=a.text; askEl.scrollTop=askEl.scrollHeight;
+  if(!a.job) return;
+  const known=job&&job.id===a.job; job={id:a.job,step:'claude'}; if(!known) render();
+  const es=new EventSource(`/api/jobs/${a.job}/stream`); askES=es; askOwner=id;
+  es.onmessage=e=>{if(SID===id) askLine(JSON.parse(e.data))};
+  es.addEventListener('done',e=>{es.close(); if(askES===es) askES=null; if(SID===id&&e.data!=='0') askLine(`— stopped (exit ${e.data}) —`); job=null; refresh()});
 }
 async function stopJob(){if(job) await api(`/api/jobs/${job.id}/stop`,J('POST'))}
 function showLog(t){$('log').classList.add('open'); if(t) $('logtitle').textContent=t}

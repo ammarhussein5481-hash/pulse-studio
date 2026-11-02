@@ -183,13 +183,14 @@ def cmd_preset(a):
     if a.action == "delete": (pd / f"{a.name}.json").unlink(missing_ok=True); print("deleted", a.name); return
     proj = project.load(a.dir); f = pd / f"{a.name}.json"
     if a.action == "save":
-        pr = {"budget_s": proj["vo"].get("budget_s", 60), "audio": proj["audio"], "identity": proj.get("identity"),
+        pr = {"budget_s": proj["vo"].get("budget_s", 60), "audio": proj["audio"], "identity": proj.get("identity"), "accent": proj.get("accent"),
               "scenes": {s["key"]: {k: s[k] for k in PRESET_KEYS if s.get(k) not in (None, [], "auto")} for s in proj["scenes"]}}
         f.write_text(json.dumps(pr, ensure_ascii=False, indent=1), encoding="utf-8"); print("saved preset", a.name, "→", f); return
     if a.action == "apply":
         if not f.exists(): raise SystemExit(f"no preset {a.name} (pulse-reel preset list)")
         pr = json.loads(f.read_text(encoding="utf-8")); proj["vo"]["budget_s"] = pr.get("budget_s", proj["vo"].get("budget_s", 60))
         proj["audio"].update(pr.get("audio", {})); proj["identity"] = pr.get("identity") or proj.get("identity")
+        if "accent" in pr: proj["accent"] = pr["accent"]
         for s in proj["scenes"]:
             for k, v in pr.get("scenes", {}).get(s["key"], {}).items(): s[k] = v
         project.save(a.dir, proj); print("applied preset", a.name)

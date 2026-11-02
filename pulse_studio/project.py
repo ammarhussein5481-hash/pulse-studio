@@ -9,6 +9,7 @@ TEMPLATE = {
     "session": {"date": "", "type": "hyrox", "source": "pulse"},  # source: pulse | file | none (no numbers); pulse sessions also carry id + file
     "vo": {"main": "vo/main.m4a", "extra": {}, "language": "ar", "dialect_hint": "", "tempo_max": 1.15, "budget_s": 60},
     "captions": {"en": True},   # English second line under the Arabic caption
+    "accent": None,             # colour of everything orange on screen: a name from config.ACCENTS or "#RRGGBB"; empty = the identity orange
     "audio": {"music": True, "music_file": "generated", "music_in": "auto", "music_db": -5, "sfx": True, "sfx_db": -7, "amb_db": -4, "duck_threshold": 0.02, "duck_ratio": 6},
     "scenes": [],
 }
