@@ -22,7 +22,7 @@ html,body{margin:0;width:1080px;height:1920px;background:transparent;overflow:hi
 #sub b{color:var(--or);font-weight:700}
 #sub span{display:inline-block}
 #dia{position:absolute;left:0;top:1060px;width:1080px;height:300px}
-#cap{position:absolute;left:60px;right:60px;top:1400px;text-align:center;font-family:"Noto Kufi Arabic";font-size:46px;line-height:1.5;color:var(--bone);direction:rtl}
+#cap{position:absolute;left:60px;right:60px;top:1400px;text-align:center;font-family:"Noto Kufi Arabic",Archivo;font-size:46px;line-height:1.5;color:var(--bone);direction:rtl}
 #cap span{display:inline-block;transition:none}
 #cap span.on{color:var(--or)}
 #capen{position:absolute;left:80px;right:80px;top:1540px;text-align:center;font-family:Archivo;font-weight:600;font-size:26px;line-height:1.3;color:var(--bone);opacity:.85;letter-spacing:.01em}
@@ -62,7 +62,7 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 const D=window.DATA.data, TL=window.DATA.timeline.scenes;
 const SES=D._session||{}; const ORDER=SES.order||Object.keys(D).filter(k=>!k.startsWith("_"));
 const KIND=SES.type||"hyrox", KICK={run:"PART",ride:"PART",strength:"EXERCISE"}[KIND]||"STATION";
-const OV=window.DATA.titles||{}; const OPT=window.DATA.scenes||{}; const TICK='<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'; const mm=s=>{s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const OV=window.DATA.titles||{}; const OPT=window.DATA.scenes||{}; const TICK='<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7" fill="none" stroke="#111" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'; const mm=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
 function autoMeta(key){
   if(OV[key]) return OV[key];
   const d=D[key]; const i=ORDER.indexOf(key);
@@ -118,7 +118,7 @@ const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart
 const NS="http://www.w3.org/2000/svg"; const el=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e};
 let cur=null;
 // ---------- diagrams: build(svg,data) returns update(u,dur) ----------
-function hrTrace(svg,tr,x0,x1,y0,y1,maxv){ // returns updater that reveals the line
+function hrTrace(svg,tr,x0,x1,y0,y1,maxv,side){ // returns updater that reveals the line
   const min=Math.min(...tr)-5, max=Math.max(...tr)+5; const X=i=>x0+(x1-x0)*i/(tr.length-1), Y=v=>y1-(y1-y0)*(v-min)/(max-min);
   const d=tr.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)).join(" ");
   const fill=el("path",{d:d+` L${x1} ${y1} L${x0} ${y1} Z`,fill:"__OR__",opacity:.18}); const line=el("path",{d,stroke:"__OR__","stroke-width":6,fill:"none","stroke-linejoin":"round","stroke-linecap":"round",filter:"drop-shadow(0 2px 4px rgba(0,0,0,.8))"});
@@ -127,7 +127,7 @@ function hrTrace(svg,tr,x0,x1,y0,y1,maxv){ // returns updater that reveals the l
   const t0=el("text",{x:x0,y:y1+34,"font-size":22,opacity:.75}); t0.textContent="HR"; const tmax=el("text",{x:x1,y:y1+34,"font-size":22,"text-anchor":"end",opacity:.75}); tmax.textContent="MAX "+maxv;
   const clip=el("clipPath",{id:"c"+Math.random().toString(36).slice(2,7)}); const rect=el("rect",{x:x0,y:0,width:0,height:300}); clip.appendChild(rect); svg.appendChild(clip);
   const g=el("g",{"clip-path":`url(#${clip.id})`}); g.appendChild(fill); g.appendChild(line); svg.appendChild(base); svg.appendChild(g); svg.appendChild(dot); svg.appendChild(lab); svg.appendChild(t0); svg.appendChild(tmax);
-  return (p)=>{const i=p*(tr.length-1), k=Math.floor(i), v=tr[Math.min(k,tr.length-1)]; rect.setAttribute("width",(x1-x0)*p+4); const x=X(i), y=Y(v); dot.setAttribute("cx",x); dot.setAttribute("cy",y); lab.setAttribute("x",x); lab.setAttribute("y",y-24); lab.textContent=v;};
+  return (p)=>{const i=p*(tr.length-1), k=Math.floor(i), v=tr[Math.min(k,tr.length-1)]; rect.setAttribute("width",(x1-x0)*p+4); const x=X(i), y=Y(v); dot.setAttribute("cx",x); dot.setAttribute("cy",y); if(side){const r=x<x1-90; lab.setAttribute("text-anchor",r?"start":"end"); lab.setAttribute("x",x+(r?22:-22)); lab.setAttribute("y",y+12);} else {lab.setAttribute("x",x); lab.setAttribute("y",y-24);} lab.textContent=v;};
 }
 function splits(svg,d){ // 5 bars of 200 m, height = speed, labels pace + HR dots
   const sp=d.splits, x0=190, w=120, gap=20, y1=236, hmax=150; const tmin=Math.min(...sp.map(s=>s[0])), tmax=Math.max(...sp.map(s=>s[0]));
@@ -180,9 +180,9 @@ function repsAll(svg,d){ // workout phase: every rep as a pace bar, lit in seque
   const H=sec=>hmax*(0.25+0.75*(slow-sec)/(slow-fast)); const best=Math.min(...secs);
   const bars=keys.map((k,i)=>{const x=x0+i*(w+gap); const on=secs[i]===best; const r=el("rect",{x,y:y1,width:w,height:0,rx:6,fill:on?"__OR__":"__BONE__",opacity:on?1:.75}); svg.appendChild(r);
     const t=el("text",{x:x+w/2,y:y1+30,"font-size":22,"text-anchor":"middle",opacity:.9}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i])};});
-  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:y-10,"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
+  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:Math.min(y-10,y1-Math.max(...secs.map(H))-8),"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
   const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM · BEST IN ORANGE`; svg.appendChild(hd);
-  const upd=d.trace&&d.trace.length>1?hrTrace(svg,d.trace,120,960,196,280,d.max):null;
+  const upd=d.trace&&d.trace.length>1?hrTrace(svg,d.trace,120,960,196,250,d.max,true):null;
   return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.3-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); if(upd) upd(clamp(p*1.2,0,1));};
 }
 function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep lit, target pace as a dashed line, HR trace of this rep beneath
@@ -191,9 +191,9 @@ function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep l
   const H=sec=>hmax*(0.25+0.75*(slow-sec)/(slow-fast)); const bars=keys.map((k,i)=>{const x=x0+i*(w+gap); const on=k===key;
     const r=el("rect",{x,y:y1,width:w,height:0,rx:6,fill:on?"__OR__":"__BONE__",opacity:on?1:.35}); svg.appendChild(r);
     const t=el("text",{x:x+w/2,y:y1+30,"font-size":on?26:20,"text-anchor":"middle",opacity:on?1:.6}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i]),t};});
-  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:y-10,"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
+  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:Math.min(y-10,y1-Math.max(...secs.map(H))-8),"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
   const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM`; svg.appendChild(hd);
-  const upd=hrTrace(svg,d.trace,120,960,196,280,d.max);
+  const upd=hrTrace(svg,d.trace,120,960,196,250,d.max,true);
   return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.4-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); upd(clamp(p*1.2,0,1));};
 }
 const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>track(s,d), lunges:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max),
@@ -219,7 +219,7 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("cap").className=fx.has("chat")?"chat sh":"sh";
   if(fx.has("chat")){ const bubs=[]; let cur=[]; cw.forEach((w,i)=>{cur.push(i); if(/[.،؟!]$/.test(w)||i===cw.length-1){bubs.push(cur);cur=[]}});
     $("cap").innerHTML=bubs.map((ix,k)=>{const j=nt===mc?ix[0]:Math.round(ix[0]*(nt-1)/Math.max(1,mc-1)); return `<div class="bub ${k%2?"me":""}" data-s="${tw[Math.min(j,nt-1)][1]}">${ix.map(i=>cw[i]).join(" ")}</div>`;}).join(""); }
-  $("capen").textContent=o.en||""; $("cap").style.top=o.en?"1340px":"1400px";
+  $("capen").textContent=o.en||"";
   // b-roll inset + phone mockup
   const ins=$("inset"); ins.style.opacity=0; if(o.inset){ins.querySelector("img").src=o.inset.file; ins.querySelector(".l").textContent=o.inset.label||""; ins.style.width=(o.inset.w||300)+"px"; const [x,y]=o.inset.pos||[740,980]; ins.style.left=x+"px"; ins.style.top=y+"px";}
   const ph=$("phone"); ph.style.opacity=0; if(o.phone){ph.querySelector("img").src=o.phone.file;}
@@ -230,8 +230,12 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   if(chk){ $("chk").innerHTML=ORDER.map(k=>{const d=D[k]||{}; return `<div class="r"><div class="b">${TICK}</div><div class="n">${(d.station||k).toUpperCase()}</div><div class="t">${d.s?mm(d.erg?d.erg[0]:d.s):""}</div></div>`;}).join("");
     $("chk").style.right=o.phone?"420px":"150px"; $("chkf").innerHTML=FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join(""); $("chkf").style.right=o.phone?"420px":"150px"; $("chkf").style.setProperty("--fv",o.phone?"62px":"84px"); }
 }
+// caption block: English sits under the Arabic without touching it; on a scene with no diagram a long block grows upward to stay above the IG bottom safe zone (y=1580).
+// Measured every frame: the first frame of a page can lay out before the Arabic font has loaded.
+function layoutCaption(sc){ const o=OPT[sc.key]||{}; let top=o.en?1340:1400; const ch=$("cap").offsetHeight, eh=o.en?$("capen").offsetHeight:0, g=o.en?16:0, free=!upd&&sc.key!=="closing"&&!o.inset&&!o.phone, over=top+ch+g+eh>1580;
+  if(over&&free) top=1580-ch-g-eh; $("cap").style.top=top+"px"; $("capen").style.top=(over&&free?top+ch+g:Math.max(1540,top+ch+g))+"px"; }
 function render(t){
-  const sc=TL.find(s=>t>=s.start&&t<s.end)||TL[TL.length-1]; if(cur!==sc) setScene(sc);
+  const sc=TL.find(s=>t>=s.start&&t<s.end)||TL[TL.length-1]; if(cur!==sc) setScene(sc); layoutCaption(sc);
   const u=t-sc.start, dur=sc.end-sc.start, rem=sc.end-t, m=META[sc.key], fin=sc.key==="closing"; const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]);
   const ST=fx.has("storm")?Math.min(0.9,0.16*(+$("storm").dataset.n||0)):0, uu=Math.max(0,u-ST);
   if(ST){const k=Math.floor(u/0.16), on=u<ST; $("storm").style.display=on?"block":"none"; [...$("storm").children].forEach((c,i)=>{c.style.display=i===k?"block":"none"; const q=(u-k*0.16)/0.16; c.style.transform=`scale(${1.25-0.25*eo(clamp(q*3,0,1))})`;});}

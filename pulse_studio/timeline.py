@@ -49,7 +49,10 @@ def build(dir: Path, proj: dict, stt: dict[str, list]) -> dict:
             scenes.append(dict(key=sc["key"], cap=sc.get("caption", ""), vo=None, vo_len=0.0, words=[], fixed=float(sc.get("duration", 4.0)))); continue
         ws = _words(segs)
         wins = vo.get("windows") or [[vo.get("from", 0.0), vo.get("to", 1e9)]]
-        words = [w for a, b in wins for w in ws if a - 0.01 <= w["s"] <= b + 0.01]
+        # Whisper often stamps a take's first word early, so it starts before the window: keep any word that starts
+        # inside it or sits mostly inside it, and never cut audio from before the window.
+        words = [{**w, "s": max(w["s"], a)} for a, b in wins for w in ws
+                 if a - 0.01 <= w["s"] <= b + 0.01 or a <= (w["s"] + w["e"]) / 2 <= b]
         if not words:
             raise SystemExit(f"scene {sc['key']}: no words in {name} within {wins}")
         pieces, cur = [], [words[0]]
