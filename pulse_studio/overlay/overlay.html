@@ -69,7 +69,12 @@ function autoMeta(key){
   if(key==="intro"){const dt=new Date(SES.date||Date.now()); const day=dt.toLocaleDateString("en-GB",{weekday:"long"}).toUpperCase(); const dm=dt.toLocaleDateString("en-GB",{day:"numeric",month:"short"}).toUpperCase();
     const lead=KIND==="run"||KIND==="ride"?(SES.distance_m?`<b>${km1(SES.distance_m)}</b> KM`:""):`<b>${ORDER.length}</b> ${KIND==="strength"?"EXERCISES":"STATIONS"}`;
     return [(SES.type||"").toUpperCase()+" · "+day, dm, null, [lead,`PULSE ${(SES.type||"").toUpperCase()}`].filter(Boolean).join(" · ")];}
-  if(key==="warmup") return KIND==="hyrox"?["BEFORE ANYTHING","WARM-UP","5:00","MOBILITY · LIGHT JUMPS"]:["BEFORE ANYTHING","WARM-UP",null,""];
+  if(key==="warmup"&&!d) return KIND==="hyrox"?["BEFORE ANYTHING","WARM-UP","5:00","MOBILITY · LIGHT JUMPS"]:["BEFORE ANYTHING","WARM-UP",null,""];
+  if(d&&(KIND==="run"||KIND==="ride")&&(key==="warmup"||key==="cooldown"||/^rep\d+$/.test(key))){
+    const pace=KIND==="run"?`<b>${d.pace||mm(d.s/(d.m/1000))}</b> /KM`:`<b>${(d.m/d.s*3.6).toFixed(1)}</b> KM/H`;
+    if(/^rep/.test(key)){ const rec=d.rec_s?` · REC <b>${mm(d.rec_s)}</b>${d.rec_hr_min?` → ${d.rec_hr_min}`:""}`:"";
+      return [`REP ${String(d.rep).padStart(2,"0")} / ${String(d.reps).padStart(2,"0")}${SES.target?` · TARGET ${SES.target}`:""}`, d.m>=950?`${km1(d.m)} KM`:`${Math.round(d.m)} M`, d.pace||mm(d.s), `AVG <b>${d.hr||""}</b> · MAX <b>${d.max||""}</b> BPM${rec}`]; }
+    return [key==="warmup"?"BEFORE THE WORK":"AFTER THE WORK", key==="warmup"?"WARM-UP":"COOL-DOWN", mm(d.s), [`<b>${km1(d.m)}</b> KM`, pace, d.hr?`AVG <b>${d.hr}</b> BPM`:""].filter(Boolean).join(" · ")]; }
   if(key==="closing") return ["SESSION COMPLETE","PULSE "+(SES.type||"").toUpperCase(),null,""];
   if(!d) return [i<0?"":`${KICK} ${String(i+1).padStart(2,"0")}`, key.replace(/_/g," ").toUpperCase(), null, ""];
   const no=`${KICK} ${String(i+1).padStart(2,"0")}`;
@@ -152,12 +157,23 @@ function zones(svg,s){ // closing: HR zones stacked bar + session trace
   const upd=hrTrace(svg,s.full_trace,120,960,30,150,s.max_hr);
   return p=>{upd(clamp(p*1.3,0,1)); segs.forEach((g,i)=>{const q=eo(clamp((p*3-i*0.3),0,1)); g.r.setAttribute("width",g.w*q);});};
 }
+function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep lit, target pace as a dashed line, HR trace of this rep beneath
+  const keys=ORDER.filter(k=>/^rep\d+$/.test(k)); const secs=keys.map(k=>D[k].s/(D[k].m/1000)); const tgt=SES.target&&/^\d+:\d\d$/.test(SES.target)?toSec(SES.target):null;
+  const all=secs.concat(tgt?[tgt]:[]); const fast=Math.min(...all)-8, slow=Math.max(...all)+8; const x0=120,x1=960,y1=150,hmax=110; const n=keys.length, w=Math.min(90,(x1-x0)/n-10), gap=(x1-x0-n*w)/Math.max(1,n-1);
+  const H=sec=>hmax*(0.25+0.75*(slow-sec)/(slow-fast)); const bars=keys.map((k,i)=>{const x=x0+i*(w+gap); const on=k===key;
+    const r=el("rect",{x,y:y1,width:w,height:0,rx:6,fill:on?"__OR__":"__BONE__",opacity:on?1:.35}); svg.appendChild(r);
+    const t=el("text",{x:x+w/2,y:y1+30,"font-size":on?26:20,"text-anchor":"middle",opacity:on?1:.6}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i]),t};});
+  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:y-10,"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
+  const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM`; svg.appendChild(hd);
+  const upd=hrTrace(svg,d.trace,120,960,196,280,d.max);
+  return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.4-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); upd(clamp(p*1.2,0,1));};
+}
 const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>track(s,d), lunges:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max),
  wall_balls:(s,d)=>ring(s,d,"REPS",100), burpee_bj:(s,d)=>ring(s,d,"JUMPS",d.steps||32), sled_push:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max), run:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max),
  closing:(s)=>zones(s,D._session)};
 let upd=null;
 function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.removeChild(svg.firstChild); upd=null;
-  const b=((KIND==="hyrox"||sc.key==="closing")&&BUILD[sc.key])||(D[sc.key]&&(D[sc.key].laps&&D[sc.key].laps.length>1?(s,d)=>lapBars(s,d):(D[sc.key].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):D[sc.key]; if(b&&has) upd=b(svg,D[sc.key]);
+  const b=((KIND==="hyrox"||sc.key==="closing")&&BUILD[sc.key])||(/^rep\d+$/.test(sc.key)&&D[sc.key]?(s,d)=>reps(s,d,sc.key):null)||(D[sc.key]&&(D[sc.key].laps&&D[sc.key].laps.length>1?(s,d)=>lapBars(s,d):(D[sc.key].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):D[sc.key]; if(b&&has) upd=b(svg,D[sc.key]);
   const m=META[sc.key]; $("kicker").textContent=m[0];
   if(sc.key==="closing"){$("name").innerHTML=`<svg width="104" height="104" viewBox="0 0 100 100" style="vertical-align:-14px;margin-right:22px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"><rect x="2" y="2" width="96" height="96" rx="22" fill="__OR__"/><rect x="22" y="58" width="14" height="22" rx="3" fill="__BONE__"/><rect x="43" y="42" width="14" height="38" rx="3" fill="__BONE__"/><rect x="64" y="24" width="14" height="56" rx="3" fill="__BONE__"/></svg>${m[1]}`;}
   else $("name").textContent=m[1];

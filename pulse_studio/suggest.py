@@ -30,7 +30,20 @@ def suggest(dir: Path, proj: dict, overwrite_in: bool = False) -> list[str]:
     if not clips: raise SystemExit("no clips.json — run: pulse-reel ingest <dir>")
     byname = {c["file"]: c for c in clips}; used = {s.get("clip") for s in proj["scenes"] if s.get("clip")}
     free = [c for c in clips if c["file"] not in used]; notes = []
+    # with session data on a clock, the clip filmed during that part wins over shoot order
+    m = {}
+    dj = b / "data.json"
+    if dj.exists():
+        try:
+            from . import clipmap
+            m = clipmap.map_clips(json.loads(dj.read_text(encoding="utf-8")), clips, proj["session"].get("clip_offset_s"))
+        except Exception: m = {}
     for s in proj["scenes"]:
+        if (not s.get("clip") or s["clip"] not in byname) and m:
+            cands = sorted((f for f, v in m.items() if v["part"] == s["key"] and f not in used), key=lambda f: m[f]["t"])
+            if cands:
+                s["clip"] = cands[0]; used.add(cands[0]); free = [c for c in free if c["file"] != cands[0]]; s["in"] = 0
+                notes.append(f"{s['key']}: clip {cands[0]} (filmed at {int(m[cands[0]]['t'] // 60)}:{int(m[cands[0]]['t'] % 60):02d} on the session clock)")
         if not s.get("clip") or s["clip"] not in byname:
             if not free: notes.append(f"{s['key']}: no clip left"); continue
             # intro/closing prefer vertical (phone) clips when there are any; stations take the next tripod clip

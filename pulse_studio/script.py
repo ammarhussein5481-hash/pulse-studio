@@ -52,7 +52,10 @@ def km(m: float) -> str:
     k = m / 1000
     if abs(k - round(k)) < 0.05: return {1: "كيلو", 2: "كيلوين"}.get(round(k), f"{num(round(k))} كيلو")
     if abs(k - int(k) - 0.5) < 0.05: return {0: "نص كيلو", 1: "كيلو ونص"}.get(int(k), f"{num(int(k))} كيلو ونص")
-    return f"{k:.1f} كيلو"
+    whole = int(k); rest = int(round((k - whole) * 10)) * 100
+    if not whole: return f"{num(rest)} متر"
+    base = {1: "كيلو", 2: "كيلوين"}.get(whole, f"{num(whole)} كيلو")
+    return f"{base} و{num(rest)} متر" if rest else base
 
 AR = {"skierg": "سكي إيرق", "row": "التجديف", "farmers": "الفارمرز كاري", "lunges": "اللانجز بالساندباق", "wall_balls": "الوول بولز",
       "burpee_bj": "البيربيز", "sled_push": "السلد بوش", "sled_pull": "السلد بول", "run": "الجري", "rowing": "التجديف"}
@@ -70,22 +73,64 @@ def dist_en(k, d):
     if d.get("m"): return f"{d['m'] / 1000:.1f} km" if d["m"] >= 1000 else f"{int(round(d['m'] / 10) * 10)} m"
     return ""
 
-def generate(proj: dict, data: dict) -> list[dict]:
-    """[{key, text}] in scene order. Uses the scenes that exist; if there are none yet, intro + stations + closing."""
+ORD = ["", "الأول", "التاني", "التالت", "الرابع", "الخامس", "السادس", "السابع", "التامن", "التاسع", "العاشر", "الحداشر", "الاتناشر"]
+ORD_EN = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"]
+
+def pace_ar(sec_per_km: float) -> str:
+    m, sec = int(sec_per_km // 60), int(round(sec_per_km % 60))
+    return f"{mins(m)}" if sec < 3 else f"{mins(m)} و{secs(sec)}"
+
+def pick_parts(data: dict, clips: list[dict] | None, proj: dict, max_parts: int = 8) -> list[str]:
+    """Which parts become scenes. With clips: the parts that were filmed (shoot time on the session clock), in order.
+    Without: for intervals warm-up + first / middle / last rep + cool-down; otherwise every part up to max_parts."""
+    s = data.get("_session", {}); order = [k for k in s.get("order", []) if isinstance(data.get(k), dict)]
+    if clips:
+        from . import clipmap
+        m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s"))
+        filmed = [k for k in order if any(v["part"] == k for v in m.values())]
+        if filmed: return filmed
+    reps_ = [k for k in order if k.startswith("rep")]
+    if len(reps_) > 4:
+        keep = {reps_[0], reps_[len(reps_) // 2], reps_[-1]}
+        best = min(reps_, key=lambda k: data[k]["s"] / max(1, data[k]["m"]))
+        keep.add(best); return [k for k in order if not k.startswith("rep") or k in keep]
+    return order[:max_parts]
+
+def generate(proj: dict, data: dict, keys: list[str] | None = None) -> list[dict]:
+    """[{key, text, en}] in scene order. Uses the scenes that exist (or `keys`); if none, intro + parts + closing."""
     import datetime
     s = data.get("_session", {}); kind = proj["session"].get("type", "hyrox"); order = s.get("order") or [k for k in data if not k.startswith("_")]
     try: day = DAYS[datetime.date.fromisoformat(proj["session"]["date"]).weekday()]
     except Exception: day = ""
-    keys = [sc["key"] for sc in proj["scenes"]] or (["intro"] + order + ["closing"])
-    lines = []; first = True; peak_done = False
+    keys = keys or [sc["key"] for sc in proj["scenes"]] or (["intro"] + order + ["closing"])
+    lines = []; first = True; peak_done = False; rec_said = False
+    reps_total = s.get("reps") or sum(1 for k in order if k.startswith("rep")); target = s.get("target")
     try: day_en = DAYS_EN[datetime.date.fromisoformat(proj["session"]["date"]).weekday()]
     except Exception: day_en = ""
     for k in keys:
         d = data.get(k) or {}
         en = ""
         if k == "intro":
-            t = f"السلام عليكم. اليوم {day}، يوم {TYPE_AR.get(kind, kind)}. بسم الله نبدأ." if day else f"السلام عليكم. يوم {TYPE_AR.get(kind, kind)}. بسم الله نبدأ."
-            en = f"{day_en + ' — ' if day_en else ''}{kind.upper()} day. Let's go."
+            if kind == "run" and s.get("structure") == "intervals" and reps_total:
+                rep_m = data[next(x for x in order if x.startswith("rep"))]["m"]
+                t = f"السلام عليكم. اليوم {day}، جري إنترفال: {num(reps_total)} في {km(rep_m) if rep_m >= 1000 else metres(rep_m)}{'، على ' + pace_ar(_tosec(target)) + ' للكيلو' if target else ''}. بسم الله."
+                en = f"{day_en + ' — ' if day_en else ''}Interval run: {reps_total} × {rep_m / 1000:.0f} km{' @ ' + target + ' /km' if target else ''}."
+            elif kind == "run" and s.get("structure") == "tempo":
+                t = f"السلام عليكم. اليوم {day}، جري تيمبو. بسم الله."; en = f"{day_en + ' — ' if day_en else ''}Tempo run."
+            else:
+                t = f"السلام عليكم. اليوم {day}، يوم {TYPE_AR.get(kind, kind)}. بسم الله نبدأ." if day else f"السلام عليكم. يوم {TYPE_AR.get(kind, kind)}. بسم الله نبدأ."
+                en = f"{day_en + ' — ' if day_en else ''}{kind.upper()} day. Let's go."
+        elif k in ("warmup", "cooldown") and d.get("m"):
+            what = "تسخين" if k == "warmup" else "تهدئة"; what_en = "Warm-up" if k == "warmup" else "Cool-down"
+            t = f"{'أول حاجة' if k == 'warmup' else 'وفي الآخر'}، {what} {km(d['m'])}، {pace_ar(d['s'] / (d['m'] / 1000))} للكيلو."
+            en = f"{what_en}: {d['m'] / 1000:.1f} km at {mmss(d['s'] / (d['m'] / 1000))} /km."; first = False
+        elif k.startswith("rep") and d.get("m"):
+            n = d.get("rep", 1); pace = d["s"] / (d["m"] / 1000)
+            t = f"الكيلو {ORD[n] if n < len(ORD) else num(n)}: {pace_ar(pace)}. النبض {num(d['hr'])}." if d.get("hr") else f"الكيلو {ORD[n]}: {pace_ar(pace)}."
+            if d.get("rec_s") and not rec_said: t += f" وبعد كل كيلو {secs(round(d['rec_s']))} راحة."; rec_said = True
+            if n == reps_total and reps_total > 1: t = t.replace("الكيلو", "الكيلو الأخير،", 1).replace(f"الأخير، {ORD[n]}", "الأخير")
+            en = f"{ORD_EN[n] if n < len(ORD_EN) else n} km: {mmss(pace)} /km, HR {d.get('hr', '')}." + (f" {int(round(d['rec_s']))} s recovery after each." if "راحة" in t else "")
+            first = False
         elif k == "warmup":
             t = "قبل أي حاجة، تسخين خفيف خمس دقايق، وبعدين نبدأ."; en = "First, a light 5-minute warm-up."
         elif k == "closing":
@@ -93,6 +138,10 @@ def generate(proj: dict, data: dict) -> list[dict]:
             if kind == "hyrox" or not s.get("distance_m"):
                 t = (f"{mins(round(tot / 60))}، {count(n, 'محطة', 'محطتين', 'محطات', 'محطة')}. " if tot else "") + "الأرقام كلها من ساعة قارمن ومن تطبيق نبض."
                 en = (f"{round(tot / 60)} minutes, {n} stations. " if tot else "") + "All numbers from the Garmin watch and the Pulse app."
+            elif s.get("structure") == "intervals" and reps_total:
+                fast_m = sum(data[x]["m"] for x in order if x.startswith("rep"))
+                t = f"{km(s['distance_m'])} كلها، {km(fast_m)} منها سريعة. الأرقام كلها من ساعة قارمن ومن تطبيق نبض."
+                en = f"{s['distance_m'] / 1000:.1f} km total, {fast_m / 1000:.0f} km of it fast. All numbers from the Garmin watch and the Pulse app."
             else:
                 t = f"{km(s['distance_m'])} في {duration(tot)}. الأرقام كلها من ساعة قارمن ومن تطبيق نبض."
                 en = f"{s['distance_m'] / 1000:.1f} km in {mmss(tot)}. All numbers from the Garmin watch and the Pulse app."
@@ -114,13 +163,38 @@ def generate(proj: dict, data: dict) -> list[dict]:
         lines.append({"key": k, "text": t, "en": en})
     return lines
 
+def _tosec(t):
+    try: a, b = str(t).split(":"); return int(a) * 60 + int(b)
+    except Exception: return 0
+
 def write(dir: Path, proj: dict, data: dict, force: bool = False) -> list[dict]:
-    """Fills scene.script (and caption + dialect hint when empty), writes build/script.md for recording."""
-    dir = Path(dir); lines = generate(proj, data)
+    """Fills scene.script (and caption + dialect hint when empty), writes build/script.md for recording.
+    Scenes are created from the parts that were FILMED when clips.json exists (shoot time vs session clock)."""
+    dir = Path(dir); clips = None
+    cj = dir / "build" / "clips.json"
+    if cj.exists():
+        try: clips = json.loads(cj.read_text(encoding="utf-8"))
+        except Exception: clips = None
+    keys = None
+    if not proj["scenes"]:
+        parts = pick_parts(data, clips, proj); keys = ["intro"] + parts + ["closing"]
+    lines = generate(proj, data, keys)
     if not proj["scenes"]:
         from .project import SCENE_TEMPLATE
         for l in lines:
             sc = json.loads(json.dumps(SCENE_TEMPLATE)); sc.update(key=l["key"], clip="", caption="", title=None); proj["scenes"].append(sc)
+        if clips:   # the clip that was filmed during each part, with a first in-point
+            from . import clipmap, suggest as sugg
+            m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s")); byname = {c["file"]: c for c in clips}; used = set()
+            for sc in proj["scenes"]:
+                cands = sorted((f for f, v in m.items() if v["part"] == sc["key"] and f not in used), key=lambda f: m[f]["t"])
+                if sc["key"] == "intro": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "") if c["file"] not in used][:1]
+                if sc["key"] == "closing": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "", reverse=True)][:1]
+                if cands:
+                    sc["clip"] = cands[0]; c = byname[cands[0]]
+                    if sc["key"] in ("intro", "closing"): sc["in"] = 0.5 if sc["key"] == "intro" else max(0.0, (c.get("duration") or 8) - 8)
+                    else: used.add(cands[0]); sc["in"] = sugg.in_point(c)
+                    if c.get("vertical"): sc["crop"] = "full"
     by = {sc["key"]: sc for sc in proj["scenes"]}
     for l in lines:
         sc = by.get(l["key"])
