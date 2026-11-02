@@ -175,11 +175,11 @@ function render(){
     <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files here (or click) · .mov .mp4</div>
     <div class="row" style="margin-top:8px"><label class="hint">import from <select id="mount">${(MOUNTS||[]).map(m=>`<option>${esc(m)}</option>`).join('')}<option value="">other…</option></select></label>
       <label class="hint"><input type="checkbox" id="impall"> all dates (not just ${esc(p.session.date)})</label><button class="ghost sm" onclick="importCard()">Import</button>
-      <span style="flex:1"></span><button class="ghost sm" onclick="run('suggest')" title="fill empty clips in shoot order; in-points still at 0 from the motion profile">Suggest clips & in-points</button></div>
+      <span style="flex:1"></span><button class="ghost sm" onclick="run('label')" title="the Assistant looks at every contact sheet and tags what it shows (warm-up, easy run, fast run, recovery walk, talking, a station…)">Label clips (AI)</button><button class="ghost sm" onclick="run('suggest')" title="fill empty clips in shoot order; in-points still at 0 from the motion profile">Suggest clips & in-points</button></div>
     <div class="clips" style="margin-top:12px">${S.clips.map(c=>{const used=p.scenes.filter(s=>s.clip===c.file).map(s=>s.key); return `<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
       ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}?${c.duration}">`:''}
       <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
-      <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span>${used.length?`<span class="u">${used.join(', ')}</span>`:'<span>unused</span>'}
+      <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span>${c.label?`<span class="pill or" title="${esc(c.label_note||'')}">${esc(c.label)}</span>`:''}${used.length?`<span class="u">${used.join(', ')}</span>`:'<span>unused</span>'}
         <span class="x"><button class="ghost" onclick="event.stopPropagation();openPlayer('${esc(c.file)}',0)" title="play / scrub (480p proxy)" ${c.proxy?'':'disabled'}>▶ scrub</button><button class="ghost" onclick="event.stopPropagation();replaceFile('raw','${esc(c.file)}')" title="upload another file under this name">replace</button><button class="ghost" onclick="event.stopPropagation();deleteFile('raw','${esc(c.file)}',${used.length})" title="delete from raw/">✕</button></span></div></div>`}).join('')}
     ${!S.clips.length&&S.raw.length?'<p class="hint">files present — run <b>1 · Clips</b> to see contact sheets</p>':''}</div>
   </section>

@@ -85,10 +85,21 @@ def pick_parts(data: dict, clips: list[dict] | None, proj: dict, max_parts: int 
     Without: for intervals warm-up + first / middle / last rep + cool-down; otherwise every part up to max_parts."""
     s = data.get("_session", {}); order = [k for k in s.get("order", []) if isinstance(data.get(k), dict)]
     if clips:
-        from . import clipmap
+        from . import clipmap, label as labelmod
         m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s"))
-        filmed = [k for k in order if any(v["part"] == k for v in m.values())]
+        byname = {c["file"]: c for c in clips}
+        # a clip whose picture contradicts its clock position (recovery walk during a rep, warm-up drills on the cool-down) does not make a scene for that part
+        filmed = [k for k in order if any(v["part"] == k and labelmod.consistent(byname[f].get("label"), k) is not False for f, v in m.items())]
         if filmed: return filmed
+        # no clock (no shoot times): the labels alone — warm-up clips → warmup, fast → reps, easy/stretch → cooldown
+        labs = {c.get("label") for c in clips}
+        if labs & {"warmup", "easy_run", "fast_run", "recovery_walk", "stretch"}:
+            reps_ = [k for k in order if k.startswith("rep")]; out = []
+            if "warmup" in labs and "warmup" in order: out.append("warmup")
+            nfast = sum(1 for c in clips if c.get("label") == "fast_run")
+            for k in reps_[:nfast] if nfast else reps_[:1]: out.append(k)
+            if labs & {"easy_run", "stretch"} and "cooldown" in order: out.append("cooldown")
+            if out: return [k for k in order if k in out]
     reps_ = [k for k in order if k.startswith("rep")]
     if len(reps_) > 4:
         keep = {reps_[0], reps_[len(reps_) // 2], reps_[-1]}
@@ -186,8 +197,12 @@ def write(dir: Path, proj: dict, data: dict, force: bool = False) -> list[dict]:
         if clips:   # the clip that was filmed during each part, with a first in-point
             from . import clipmap, suggest as sugg
             m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s")); byname = {c["file"]: c for c in clips}; used = set()
+            from . import label as labelmod
             for sc in proj["scenes"]:
-                cands = sorted((f for f, v in m.items() if v["part"] == sc["key"] and f not in used), key=lambda f: m[f]["t"])
+                cands = sorted((f for f, v in m.items() if v["part"] == sc["key"] and f not in used), key=lambda f: (labelmod.consistent(byname[f].get("label"), sc["key"]) is False, m[f]["t"]))
+                if sc["key"] in ("intro", "closing"):   # a talking-to-camera clip is the natural intro/closing when there is one
+                    talk = [c["file"] for c in clips if c.get("label") == "talking"]
+                    if talk: cands = [talk[0] if sc["key"] == "intro" else talk[-1]]
                 if sc["key"] == "intro": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "") if c["file"] not in used][:1]
                 if sc["key"] == "closing": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "", reverse=True)][:1]
                 if cands:
@@ -195,6 +210,7 @@ def write(dir: Path, proj: dict, data: dict, force: bool = False) -> list[dict]:
                     if sc["key"] in ("intro", "closing"): sc["in"] = 0.5 if sc["key"] == "intro" else max(0.0, (c.get("duration") or 8) - 8)
                     else: used.add(cands[0]); sc["in"] = sugg.in_point(c)
                     if c.get("vertical"): sc["crop"] = "full"
+                    if c.get("label"): sc["clip_label"] = c["label"] + (" — " + c["label_note"] if c.get("label_note") else "")
     by = {sc["key"]: sc for sc in proj["scenes"]}
     for l in lines:
         sc = by.get(l["key"])

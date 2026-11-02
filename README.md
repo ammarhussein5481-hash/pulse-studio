@@ -52,6 +52,7 @@ pulse-reel new sessions/2026-11-08-hyrox --from-pulse <id>   # add --budget 90 f
 #  → put the camera files in sessions/2026-11-08-hyrox/raw/, the voice recording in vo/
 pulse-reel ingest sessions/2026-11-08-hyrox     # clips by shoot time + contact sheets
 pulse-reel data   sessions/2026-11-08-hyrox     # pulls that session's data.json from Pulse
+pulse-reel label  sessions/2026-11-08-hyrox     # what each clip shows (AI look at the contact sheets): warm-up, fast run, recovery walk, talking…
 pulse-reel script sessions/2026-11-08-hyrox     # Arabic voice-over lines with the real numbers (+ English captions) → record them
 pulse-reel stt    sessions/2026-11-08-hyrox     # word-timed transcript of the voice-over
 pulse-reel match  sessions/2026-11-08-hyrox     # script ↔ recording: voice windows per scene, what was heard, numbers checked

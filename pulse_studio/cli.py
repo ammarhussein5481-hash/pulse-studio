@@ -10,6 +10,7 @@
   pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4
   pulse-reel audio <dir>                                    re-mix audio only (music/sfx/amb levels changed) → new out version
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
+  pulse-reel label <dir> [--force]                          what each clip shows (vision pass over the contact sheets) → clips.json labels
   pulse-reel script <dir> [--force]                         Arabic voice-over lines per scene with the real numbers (+ English captions) → record them
   pulse-reel match <dir>                                    align script ↔ recording: voice windows per scene + what was heard, numbers checked
   pulse-reel send <dir> [--version N]                       send the reel + post copy to your phone (Pulse Telegram bot; PULSE_TG_TOKEN / PULSE_TG_CHAT)
@@ -22,7 +23,7 @@
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
 from pathlib import Path
-from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg, script as scriptmod, align as alignmod
+from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg, script as scriptmod, align as alignmod, label as labelmod
 from .config import FPS, HOME, probe, node, chrome, ffmpeg
 
 def _latest_version(outdir: Path, name: str) -> int:
@@ -97,6 +98,13 @@ def cmd_audio(a):
     if proj["audio"].get("music", True): music.prepare(proj, tl, b / "music.wav")
     v = _latest_version(outdir, proj["name"]) + 1; out = outdir / f"{proj['name']}-v{v}.mp4"
     mix.composite(a.dir, proj, tl, out); print(f"done: {out} {mix.verify(out)}")
+
+def cmd_label(a):
+    """What each clip shows (warm-up / easy run / fast run / recovery walk / talking / a HYROX station …) — a vision pass over the contact sheets."""
+    b = Path(a.dir) / "build"; cj = b / "clips.json"
+    if not cj.exists(): raise SystemExit("no clips.json — run: pulse-reel ingest <dir>")
+    clips = labelmod.label_clips(a.dir, json.loads(cj.read_text(encoding="utf-8")), force=a.force)
+    print(labelmod.describe(clips)); print("\nlabels saved in build/clips.json — the script step uses them with the shoot times")
 
 def cmd_script(a):
     """Arabic voice-over lines (+ English captions) per scene from the session data — what Ammar records next."""
@@ -233,6 +241,7 @@ def main(argv=None):
     p = sp.add_parser("build"); p.add_argument("dir"); p.add_argument("--only"); p.add_argument("--no-frames", action="store_true"); p.set_defaults(f=cmd_build)
     p = sp.add_parser("audio"); p.add_argument("dir"); p.set_defaults(f=cmd_audio)
     p = sp.add_parser("publish"); p.add_argument("dir"); p.add_argument("--to"); p.set_defaults(f=cmd_publish)
+    p = sp.add_parser("label"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_label)
     p = sp.add_parser("script"); p.add_argument("dir"); p.add_argument("--force", action="store_true", help="overwrite lines you edited"); p.set_defaults(f=cmd_script)
     p = sp.add_parser("match"); p.add_argument("dir"); p.set_defaults(f=cmd_match)
     p = sp.add_parser("send"); p.add_argument("dir"); p.add_argument("--version"); p.set_defaults(f=cmd_send)
