@@ -14,8 +14,11 @@ TEMPLATE = {
 }
 
 SCENE_TEMPLATE = {
-    "key": "skierg",          # station key from data.json, or intro/warmup/closing
-    "clip": "PC000383.mov",   # file under raw/
+    "key": "skierg",          # scene id: a phase (warmup / workout / cooldown), a station, or intro / closing — rename freely
+    "name": None,             # on-screen name override (the big NAME line); default from the data / key
+    "parts": None,            # data parts this scene summarises, e.g. ["rep1", ..., "rep7"] for a "workout" scene; default [key]
+    "shots": None,            # several videos / photos played in sequence: [{"file": "C0002.MOV", "in": 3.0, "crop": "auto", "w": 1}, {"file": "IMG_1.jpg"}] — else clip/in/crop below
+    "clip": "PC000383.mov",   # file under raw/ (single-shot scene)
     "in": 2.0,                # seconds into the clip
     "crop": "auto",           # auto | full (no crop, vertical source) | "w:h:x:y" explicit crop on the source
     "amb_db": -9,             # original clip audio gain (-90 = mute)

@@ -48,22 +48,57 @@ def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta
         subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf), "-map", "[v]",
                         "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)], check=True)
     amp = float(sc.get("amb_db", -9))
-    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-vn", "-ac", "2", "-ar", "48000",
-                    "-af", f"apad=whole_dur={d},volume={amp}dB", "-c:a", "aac", "-b:a", "160k", str(ta)], check=True)
+    r = subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-vn", "-ac", "2", "-ar", "48000",
+                        "-af", f"apad=whole_dur={d},volume={amp}dB", "-c:a", "aac", "-b:a", "160k", str(ta)])
+    if r.returncode != 0:   # clip without an audio stream (screen recording, some phone exports): silence of the same length
+        subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
+
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
+
+def shots_of(sc: dict) -> list[dict]:
+    """A scene's media in order: its `shots` list, or the single clip/in/crop as one shot."""
+    if sc.get("shots"): return [dict(s) for s in sc["shots"] if s.get("file")]
+    return [{"file": sc.get("clip"), "in": sc.get("in", 0), "crop": sc.get("crop", "auto"), "w": 1}] if sc.get("clip") else []
+
+def cut_photo(src: Path, sc: dict, d: float, tv: Path, ta: Path) -> None:
+    """A still as a video segment with a slow push-in (Ken Burns) + silent track."""
+    vf = (f"scale={W * 1.12:.0f}:{H * 1.12:.0f}:force_original_aspect_ratio=increase,crop={W * 1.12:.0f}:{H * 1.12:.0f},"
+          f"zoompan=z='1+0.0015*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1")
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-loop", "1", "-i", str(src), "-t", str(d), "-vf", vf,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)], check=True)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
+
+def cut_shots(b: Path, raw: Path, sc: dict, key: str, d: float, i, tv: Path, ta: Path) -> None:
+    """All shots of one scene → one video + one ambience track of exactly d seconds (shots share d by their weights)."""
+    shots = shots_of(sc)
+    if not shots: raise SystemExit(f"scene {key}: no clip or shots")
+    wsum = sum(float(x.get("w") or 1) for x in shots); parts_v, parts_a = [], []
+    durs = [round(d * float(x.get("w") or 1) / wsum, 3) for x in shots]; durs[-1] = round(d - sum(durs[:-1]), 3)
+    for j, sh in enumerate(shots):
+        dj = durs[j]; src = raw / sh["file"]; pv, pa = (tv, ta) if len(shots) == 1 else (b / f"t{i}_{j}.mp4", b / f"t{i}_{j}.m4a")
+        scj = {**sc, "crop": sh.get("crop", "auto"), "amb_db": sh.get("amb_db", sc.get("amb_db", -9)), "fx": (sc.get("fx") or []) if j == 0 else [x for x in (sc.get("fx") or []) if x != "zoomcut"]}
+        if src.suffix.lower() in IMAGE_EXT:
+            cut_photo(src, scj, dj, pv, pa)
+        else:
+            info = probe(src); ss = float(sh.get("in", 0) or 0)
+            if ss + dj > info["duration"] + 0.05: print(f"  ! {key}: {sh['file']} is {info['duration']:.1f}s, needs in={ss}+{dj:.1f}s — will freeze last frame")
+            cut_scene(src, scj, info, ss, dj, pv, pa)
+        parts_v.append(pv); parts_a.append(pa)
+    if len(shots) > 1:
+        for lst, out, codec in ((parts_v, tv, ["-c", "copy"]), (parts_a, ta, ["-c:a", "aac", "-b:a", "160k"])):
+            f = b / f"t{i}_{'v' if out == tv else 'a'}.txt"; f.write_text("".join(f"file '{p.resolve()}'\n" for p in lst))
+            subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(f), *codec, str(out)], check=True)
+    print(f"  scene {i} {key} done ({len(shots)} shot{'s' if len(shots) > 1 else ''})", flush=True)
 
 def build(dir: Path, proj: dict, tl: dict, only: set[str] | None = None) -> tuple[Path, Path]:
     dir = Path(dir); b = dir / "build"; raw = dir / "raw"
     byk = {s["key"]: s for s in proj["scenes"]}
     vlist, alist = [], []
     for i, s in enumerate(tl["scenes"], 1):
-        sc = byk[s["key"]]; src = raw / sc["clip"]; info = probe(src)
-        d = round(s["end"] - s["start"], 3); ss = float(sc.get("in", 0))
-        if ss + d > info["duration"] + 0.05:
-            print(f"  ! {s['key']}: clip {sc['clip']} is {info['duration']:.1f}s, needs in={ss}+{d:.1f}s — will freeze last frame")
+        sc = byk[s["key"]]; d = round(s["end"] - s["start"], 3)
         tv, ta = b / f"t{i}.mp4", b / f"t{i}.m4a"
         if only is None or s["key"] in only or not tv.exists():
-            cut_scene(src, sc, info, ss, d, tv, ta)
-            print(f"  scene {i} {s['key']} done")
+            cut_shots(b, raw, sc, s["key"], d, i, tv, ta)
         vlist.append(tv); alist.append(ta)
     (b / "vlist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in vlist))
     (b / "alist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in alist))

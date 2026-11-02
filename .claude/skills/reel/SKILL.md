@@ -33,6 +33,9 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - Ingest makes a 480p proxy per clip (`build/proxy_*.mp4`); in the web app Ammar scrubs it and sets the in-point himself — when he says "I set the sled in-point", re-read project.json rather than changing it.
 - `pulse-reel preset save <name> --dir <dir>` / `apply` — fx, audio levels, music track, length as a template (`~/.pulse-studio/presets/`). "Make it like last time" = apply his preset.
 
+## Scenes are phases, with several shots
+A scene = a phase of the session (warmup / workout / cooldown for runs and rides; a station for HYROX), plus intro and closing. `parts` lists the data parts it summarises (`"workout": ["rep1", …, "rep7"]` → "7 × 1 KM · avg 4:05 · best 4:00", bars for every rep). `shots` is the media: several videos or photos played in sequence, time split by `w`. Photos in raw/ are clips too (4 s push-in). Scene keys are renamable; `name` overrides the on-screen name. When Ammar says "put the watch photo in the workout" → add a shot; "call it THE SET" → `name`. Keep one scene per phase unless he asks for more.
+
 ## Revisions (what Ammar usually asks)
 - "X shot starts from here" (screenshot of the player scrubber): read the scrubber fraction × clip duration → set that scene's `in`; or match the frame with a quick contact sheet around the guess. Rebuild with `--only <key>`.
 - "Use this video for X": set `clip`; `crop: "full"` if he wants the whole frame even when he's small.

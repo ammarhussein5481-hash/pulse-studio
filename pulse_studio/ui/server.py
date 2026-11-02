@@ -13,7 +13,7 @@ from ..config import ffmpeg
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
 STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match", "send", "label"}
-RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
+RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv", ".jpg", ".jpeg", ".png", ".heic", ".webp"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
 
@@ -145,10 +145,13 @@ def _refresh_clip(d: Path, name: str, remove: bool = False):
     else:
         src = d / "raw" / name
         try:
-            pr = config.probe(src)
-            c = {"file": name, "created": pr["created"], "duration": round(pr["duration"], 2), "width": pr["width"], "height": pr["height"],
-                 "vertical": (pr["width"] or 0) < (pr["height"] or 1)}
-            c.update(ingest.process_clip(src, b, c["duration"])); clips.append(c)
+            if src.suffix.lower() in ingest.IMAGE_EXT:
+                clips.append(ingest.photo_entry(src, b))
+            else:
+                pr = config.probe(src)
+                c = {"file": name, "created": pr["created"], "duration": round(pr["duration"], 2), "width": pr["width"], "height": pr["height"],
+                     "vertical": (pr["width"] or 0) < (pr["height"] or 1)}
+                c.update(ingest.process_clip(src, b, c["duration"])); clips.append(c)
         except Exception as e:
             print("refresh_clip:", e)
     clips.sort(key=lambda c: (c["created"] or "", c["file"])); cj.write_text(json.dumps(clips, indent=1), encoding="utf-8")
@@ -156,7 +159,7 @@ def _refresh_clip(d: Path, name: str, remove: bool = False):
     pj = project.load(d); tl = _jload(b / "timeline.json") or {}
     for i, sc in enumerate(tl.get("scenes", []), 1):
         s = next((x for x in pj["scenes"] if x["key"] == sc["key"]), None)
-        if s and s.get("clip") == name:
+        if s and (s.get("clip") == name or any(x.get("file") == name for x in (s.get("shots") or []))):
             for ext in (".mp4", ".m4a"): (b / f"t{i}{ext}").unlink(missing_ok=True)
 
 def _drop_vo_derived(d: Path, name: str):
@@ -267,7 +270,7 @@ def delete_file(sid: str, kind: str, name: str):
     p.unlink()
     if sub == "raw":
         _refresh_clip(d, p.name, remove=True)
-        pj = project.load(d); used = [s["key"] for s in pj["scenes"] if s.get("clip") == p.name]
+        pj = project.load(d); used = [s["key"] for s in pj["scenes"] if s.get("clip") == p.name or any(x.get("file") == p.name for x in (s.get("shots") or []))]
         return {"ok": True, "orphaned_scenes": used}
     keys = _drop_vo_derived(d, p.name); pj = project.load(d)
     for k in keys:

@@ -5,11 +5,14 @@ from pathlib import Path
 from .config import ffmpeg, probe
 
 VIDEO_EXT = {".mov", ".mp4", ".m4v", ".mkv"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 def inventory(dir: Path, sheets: bool = True) -> list[dict]:
     raw = Path(dir) / "raw"; build = Path(dir) / "build"; build.mkdir(exist_ok=True)
     clips = []
     for f in sorted(raw.iterdir()):
+        if f.suffix.lower() in IMAGE_EXT:
+            clips.append(photo_entry(f, build)); continue
         if f.suffix.lower() not in VIDEO_EXT:
             continue
         p = probe(f)
@@ -17,10 +20,33 @@ def inventory(dir: Path, sheets: bool = True) -> list[dict]:
                       "width": p["width"], "height": p["height"], "vertical": (p["width"] or 0) < (p["height"] or 1)})
     clips.sort(key=lambda c: (c["created"] or "", c["file"]))
     for c in clips:
+        if c.get("photo"): continue
         c.update(process_clip(raw / c["file"], build, c["duration"], sheets=sheets))
         print(f"  {c['file']} ok", flush=True)
     (build / "clips.json").write_text(json.dumps(clips, indent=1), encoding="utf-8")
     return clips
+
+def photo_entry(src: Path, build: Path) -> dict:
+    """A photo in raw/: shown as a 4 s still with a slow push-in; its 'sheet' is a thumbnail of itself."""
+    import datetime
+    out = build / f"sheet_{src.stem}.jpg"; px = build / f"proxy_{src.stem}.mp4"
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-i", str(src), "-vf", "scale=400:-2", "-q:v", "6", str(out)])
+    if not px.exists():   # a 4 s proxy so the page can scrub/preview it like a clip
+        subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-loop", "1", "-i", str(src), "-t", "4", "-vf", "scale=-2:480,fps=30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "veryfast", str(px)])
+    try:
+        from PIL import Image
+        with Image.open(src) as im: w, h = im.size
+    except Exception:
+        pr = probe(src); w, h = pr["width"], pr["height"]
+    created = datetime.datetime.fromtimestamp(src.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+    try:   # EXIF capture time when present
+        from PIL import Image, ExifTags
+        with Image.open(src) as im:
+            ex = im.getexif(); dt = ex.get(36867) or ex.get(306)
+            if dt: created = dt.replace(":", "-", 2).replace(" ", "T")
+    except Exception: pass
+    return {"file": src.name, "created": created, "duration": 4.0, "width": w, "height": h, "vertical": (w or 0) < (h or 1), "photo": True,
+            "sheet": out.name if out.exists() else None, "proxy": px.name if px.exists() else None, "motion": []}
 
 def process_clip(src: Path, build: Path, dur: float, sheets: bool = True, tiles: int = 8) -> dict:
     """ONE decode of the (4K) source → contact sheet + 480p proxy (for scrubbing in the web app) + motion profile.

@@ -80,6 +80,19 @@ def pace_ar(sec_per_km: float) -> str:
     m, sec = int(sec_per_km // 60), int(round(sec_per_km % 60))
     return f"{mins(m)}" if sec < 3 else f"{mins(m)} و{secs(sec)}"
 
+def phases(data: dict) -> list[tuple[str, list[str]]]:
+    """Scenes as PHASES: [(scene key, data parts it summarises)]. Runs/rides: warmup → workout (all reps / the tempo block / all
+    distance parts) → cooldown. HYROX / strength: one scene per station (the station is the phase)."""
+    s = data.get("_session", {}); order = [k for k in s.get("order", []) if isinstance(data.get(k), dict)]
+    if s.get("type") in ("run", "ride") or any(k.startswith(("rep", "part")) for k in order):
+        out = []
+        if "warmup" in order: out.append(("warmup", ["warmup"]))
+        work = [k for k in order if k.startswith(("rep", "part"))]
+        if work: out.append(("workout", work))
+        if "cooldown" in order: out.append(("cooldown", ["cooldown"]))
+        return out or [(k, [k]) for k in order]
+    return [(k, [k]) for k in order]
+
 def pick_parts(data: dict, clips: list[dict] | None, proj: dict, max_parts: int = 8) -> list[str]:
     """Which parts become scenes. With clips: the parts that were filmed (shoot time on the session clock), in order.
     Without: for intervals warm-up + first / middle / last rep + cool-down; otherwise every part up to max_parts."""
@@ -114,6 +127,8 @@ def generate(proj: dict, data: dict, keys: list[str] | None = None) -> list[dict
     try: day = DAYS[datetime.date.fromisoformat(proj["session"]["date"]).weekday()]
     except Exception: day = ""
     keys = keys or [sc["key"] for sc in proj["scenes"]] or (["intro"] + order + ["closing"])
+    sc_parts = {sc["key"]: sc.get("parts") or [] for sc in proj["scenes"]}
+    if "workout" in keys and not sc_parts.get("workout"): sc_parts["workout"] = [k for k in order if k.startswith(("rep", "part"))]
     lines = []; first = True; peak_done = False; rec_said = False
     reps_total = s.get("reps") or sum(1 for k in order if k.startswith("rep")); target = s.get("target")
     try: day_en = DAYS_EN[datetime.date.fromisoformat(proj["session"]["date"]).weekday()]
@@ -135,6 +150,18 @@ def generate(proj: dict, data: dict, keys: list[str] | None = None) -> list[dict
             what = "تسخين" if k == "warmup" else "تهدئة"; what_en = "Warm-up" if k == "warmup" else "Cool-down"
             t = f"{'أول حاجة' if k == 'warmup' else 'وفي الآخر'}، {what} {km(d['m'])}، {pace_ar(d['s'] / (d['m'] / 1000))} للكيلو."
             en = f"{what_en}: {d['m'] / 1000:.1f} km at {mmss(d['s'] / (d['m'] / 1000))} /km."; first = False
+        elif k == "workout" or (not d and sc_parts.get(k)):
+            P = [data[x] for x in sc_parts.get(k, []) if isinstance(data.get(x), dict)]; R = [x for x in P if x.get("rep")]
+            if R:
+                paces = [x["s"] / (x["m"] / 1000) for x in R]; avg = sum(paces) / len(paces); best = min(paces); hr = round(sum(x["hr"] * x["s"] for x in R if x.get("hr")) / sum(x["s"] for x in R if x.get("hr"))) if any(x.get("hr") for x in R) else None
+                rep_m = R[0]["m"]
+                t = f"الشغل: {num(len(R))} في {km(rep_m) if rep_m >= 1000 else metres(rep_m)}، المتوسط {pace_ar(avg)}{'، وأسرع واحد ' + pace_ar(best) if best < avg - 2 else ''}." + (f" النبض {num(hr)}." if hr else "") + (f" وبين كل كيلو {secs(round(R[0]['rec_s']))} راحة." if R[0].get("rec_s") else "")
+                en = f"The work: {len(R)} × {rep_m / 1000:.0f} km, avg {mmss(avg)} /km{', best ' + mmss(best) if best < avg - 2 else ''}{', HR ' + str(hr) if hr else ''}." + (f" {int(round(R[0]['rec_s']))} s recovery between." if R[0].get("rec_s") else "")
+            elif P:
+                m_ = sum(x.get("m") or 0 for x in P); s_ = sum(x.get("s") or 0 for x in P)
+                t = f"الشغل: {km(m_)} في {duration(s_)}{'، ' + pace_ar(s_ / (m_ / 1000)) + ' للكيلو' if m_ else ''}."; en = f"The work: {m_ / 1000:.1f} km in {mmss(s_)}{' at ' + mmss(s_ / (m_ / 1000)) + ' /km' if m_ else ''}."
+            else: t = "الشغل."; en = "The work."
+            first = False
         elif k.startswith("rep") and d.get("m"):
             n = d.get("rep", 1); pace = d["s"] / (d["m"] / 1000)
             t = f"الكيلو {ORD[n] if n < len(ORD) else num(n)}: {pace_ar(pace)}. النبض {num(d['hr'])}." if d.get("hr") else f"الكيلو {ORD[n]}: {pace_ar(pace)}."
@@ -186,31 +213,40 @@ def write(dir: Path, proj: dict, data: dict, force: bool = False) -> list[dict]:
     if cj.exists():
         try: clips = json.loads(cj.read_text(encoding="utf-8"))
         except Exception: clips = None
-    keys = None
+    keys = None; ph = None
     if not proj["scenes"]:
-        parts = pick_parts(data, clips, proj); keys = ["intro"] + parts + ["closing"]
-    lines = generate(proj, data, keys)
-    if not proj["scenes"]:
+        ph = phases(data); keys = ["intro"] + [k for k, _ in ph] + ["closing"]
         from .project import SCENE_TEMPLATE
-        for l in lines:
-            sc = json.loads(json.dumps(SCENE_TEMPLATE)); sc.update(key=l["key"], clip="", caption="", title=None); proj["scenes"].append(sc)
-        if clips:   # the clip that was filmed during each part, with a first in-point
-            from . import clipmap, suggest as sugg
-            m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s")); byname = {c["file"]: c for c in clips}; used = set()
-            from . import label as labelmod
+        for k in keys:
+            sc = json.loads(json.dumps(SCENE_TEMPLATE)); sc.update(key=k, clip="", caption="", title=None, parts=dict(ph).get(k)); proj["scenes"].append(sc)
+    lines = generate(proj, data, keys)
+    if ph is not None and clips:   # shots: every clip filmed during a phase (clock) that does not contradict it (label), up to 4 per scene
+        from . import clipmap, suggest as sugg, label as labelmod
+        m = clipmap.map_clips(data, clips, proj["session"].get("clip_offset_s")); byname = {c["file"]: c for c in clips}; used = set()
+        def shot(c, key):
+            sh = {"file": c["file"], "in": 0.5 if key == "intro" else (0 if c.get("photo") else sugg.in_point(c)), "crop": "full" if c.get("vertical") else "auto", "w": 1}
+            if c.get("label"): sh["label"] = c["label"]
+            return sh
+        for sc in proj["scenes"]:
+            parts_ = sc.get("parts") or [sc["key"]]
+            if sc["key"] in ("intro", "closing"):
+                talk = [byname[f] for f in sorted(m, key=lambda f: m[f]["t"]) if byname[f].get("label") == "talking"]
+                pick = (talk[:1] if sc["key"] == "intro" else talk[-1:]) if talk else ([min(byname.values(), key=lambda c: c.get("created") or "")] if sc["key"] == "intro" else [max(byname.values(), key=lambda c: c.get("created") or "")])
+                sc["shots"] = [shot(c, sc["key"]) for c in pick]
+                if sc["key"] == "closing" and sc["shots"]: sc["shots"][0]["in"] = max(0.0, (pick[0].get("duration") or 8) - 8)
+                continue
+            cands = [f for f, v in sorted(m.items(), key=lambda x: x[1]["t"]) if v["part"] in parts_ and f not in used and labelmod.consistent(byname[f].get("label"), v["part"]) is not False]
+            cands = cands[:4]; used.update(cands)
+            sc["shots"] = [shot(byname[f], sc["key"]) for f in cands]
+        if not any(sc.get("shots") for sc in proj["scenes"] if sc["key"] not in ("intro", "closing")):   # no clock match at all: labels, then shoot order
+            pool = [c for c in sorted(clips, key=lambda c: c.get("created") or "")]
             for sc in proj["scenes"]:
-                cands = sorted((f for f, v in m.items() if v["part"] == sc["key"] and f not in used), key=lambda f: (labelmod.consistent(byname[f].get("label"), sc["key"]) is False, m[f]["t"]))
-                if sc["key"] in ("intro", "closing"):   # a talking-to-camera clip is the natural intro/closing when there is one
-                    talk = [c["file"] for c in clips if c.get("label") == "talking"]
-                    if talk: cands = [talk[0] if sc["key"] == "intro" else talk[-1]]
-                if sc["key"] == "intro": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "") if c["file"] not in used][:1]
-                if sc["key"] == "closing": cands = [c["file"] for c in sorted(clips, key=lambda c: c.get("created") or "", reverse=True)][:1]
-                if cands:
-                    sc["clip"] = cands[0]; c = byname[cands[0]]
-                    if sc["key"] in ("intro", "closing"): sc["in"] = 0.5 if sc["key"] == "intro" else max(0.0, (c.get("duration") or 8) - 8)
-                    else: used.add(cands[0]); sc["in"] = sugg.in_point(c)
-                    if c.get("vertical"): sc["crop"] = "full"
-                    if c.get("label"): sc["clip_label"] = c["label"] + (" — " + c["label_note"] if c.get("label_note") else "")
+                if sc["key"] in ("intro", "closing"): continue
+                want = {"warmup": {"warmup", "stretch", "easy_run"}, "workout": {"fast_run", "easy_run", "ride", "strength"}, "cooldown": {"easy_run", "stretch", "recovery_walk"}}.get(sc["key"], set())
+                pick = [c for c in pool if c.get("label") in want][:4] or pool[:2]
+                sc["shots"] = [shot(c, sc["key"]) for c in pick]; pool = [c for c in pool if c not in pick]
+    for sc in proj["scenes"]:
+        if sc.get("shots") == []: sc["shots"] = None
     by = {sc["key"]: sc for sc in proj["scenes"]}
     for l in lines:
         sc = by.get(l["key"])

@@ -172,11 +172,11 @@ function render(){
 
   <div class="grid2">
   <section><h2>Clips <span class="pill">${S.raw.length} in raw/</span></h2>
-    <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files here (or click) · .mov .mp4</div>
+    <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files or photos here (or click) · .mov .mp4 .jpg</div>
     <div class="row" style="margin-top:8px"><label class="hint">import from <select id="mount">${(MOUNTS||[]).map(m=>`<option>${esc(m)}</option>`).join('')}<option value="">other…</option></select></label>
       <label class="hint"><input type="checkbox" id="impall"> all dates (not just ${esc(p.session.date)})</label><button class="ghost sm" onclick="importCard()">Import</button>
       <span style="flex:1"></span><button class="ghost sm" onclick="run('label')" title="the Assistant looks at every contact sheet and tags what it shows (warm-up, easy run, fast run, recovery walk, talking, a station…)">Label clips (AI)</button><button class="ghost sm" onclick="run('suggest')" title="fill empty clips in shoot order; in-points still at 0 from the motion profile">Suggest clips & in-points</button></div>
-    <div class="clips" style="margin-top:12px">${S.clips.map(c=>{const used=p.scenes.filter(s=>s.clip===c.file).map(s=>s.key); return `<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
+    <div class="clips" style="margin-top:12px">${S.clips.map(c=>{const used=p.scenes.filter(s=>s.clip===c.file||(s.shots||[]).some(x=>x.file===c.file)).map(s=>s.key); return `<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
       ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}?${c.duration}">`:''}
       <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
       <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span>${c.label?`<span class="pill or" title="${esc(c.label_note||'')}">${esc(c.label)}</span>`:''}${used.length?`<span class="u">${used.join(', ')}</span>`:'<span>unused</span>'}
@@ -261,15 +261,16 @@ function sceneRow(s,i,tl){
   const t=tl&&tl.scenes.find(x=>x.key===s.key);
   const win=s.vo.windows?JSON.stringify(s.vo.windows):'';
   return `<div class="scene ${i===selScene?'on':''}" onclick="selScene=${i};render()">
-    <div><div class="k">${esc(s.key)}<small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}</small></div>
-      ${s.clip&&S.raw.includes(s.clip)?`<img class="th" src="/api/s/${SID}/thumb?clip=${encodeURIComponent(s.clip)}&t=${(+s.in||0).toFixed(1)}" title="${esc(s.clip)} @ ${s.in}s — click to scrub" onclick="event.stopPropagation();selScene=${i};openPlayer('${esc(s.clip)}',${+s.in||0})">`:'<div class="th nope">no clip</div>'}
+    <div><div class="k"><input value="${esc(s.key)}" title="scene id — rename freely (data stays linked through 'parts')" style="font-family:Anton;font-size:20px;text-transform:uppercase;color:var(--or);background:transparent;border:0;border-bottom:1px dashed var(--line);width:130px;padding:0" onchange="renameScene(${i},this.value)"><small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}${s.parts&&s.parts.length>1?`<br>${s.parts.length} parts: ${esc(s.parts[0])}…${esc(s.parts[s.parts.length-1])}`:''}</small></div>
+      ${(s.shots&&s.shots.length?s.shots:(s.clip?[{file:s.clip,in:s.in}]:[])).filter(x=>S.raw.includes(x.file)).map(x=>`<img class="th" src="/api/s/${SID}/thumb?clip=${encodeURIComponent(x.file)}&t=${(+x.in||0).toFixed(1)}" title="${esc(x.file)} @ ${x.in||0}s — click to scrub" onclick="event.stopPropagation();selScene=${i};openPlayer('${esc(x.file)}',${+x.in||0})">`).join('')||'<div class="th nope">no media</div>'}
       <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button><button class="ghost sm" onclick="event.stopPropagation();selScene=${i};run('preview',{key:'${esc(s.key)}'})" title="3 s of this scene with overlay + voice, ~30 s">▶ preview</button></div></div>
     <div>
       <div class="f">
         <label>key <select onchange="sc(${i}).key=this.value;save()">${stationKeys().concat(stationKeys().includes(s.key)?[]:[s.key]).map(k=>`<option ${k===s.key?'selected':''}>${k}</option>`).join('')}</select></label>
-        <label>clip <select onchange="sc(${i}).clip=this.value;save()"><option></option>${S.raw.concat(S.raw.includes(s.clip)?[]:[s.clip]).map(c=>`<option ${c===s.clip?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+        <label>name <input value="${esc(s.name||'')}" placeholder="on-screen name" style="width:130px" onchange="sc(${i}).name=this.value||null;save()"></label>
+        ${s.shots&&s.shots.length?`<span class="hint">${s.shots.length} shots — edit below</span><button class="ghost sm" onclick="event.stopPropagation();addShot(${i})">+ shot</button>`:`<label>clip <select onchange="sc(${i}).clip=this.value;save()"><option></option>${S.raw.concat(S.raw.includes(s.clip)?[]:[s.clip]).map(c=>`<option ${c===s.clip?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
         <label>in <input type="number" step="0.1" value="${s.in}" onchange="sc(${i}).in=+this.value;save()"> s</label>
-        <label>crop <input value="${esc(s.crop)}" style="width:90px" onchange="sc(${i}).crop=this.value;save()" title="auto | full | w:h:x:y"></label>
+        <label>crop <input value="${esc(s.crop)}" style="width:90px" onchange="sc(${i}).crop=this.value;save()" title="auto | full | w:h:x:y"></label><button class="ghost sm" onclick="event.stopPropagation();addShot(${i})" title="turn this into a multi-shot scene (videos or photos in sequence)">+ shot</button>`}
         <label>clip audio <input type="number" value="${s.amb_db}" onchange="sc(${i}).amb_db=+this.value;save()"> dB</label>
         <label>vo <select onchange="sc(${i}).vo.file=this.value;save()">${voFiles().map(f=>`<option ${f===s.vo.file?'selected':''}>${f}</option>`).join('')}</select>
           <input type="number" step="0.01" placeholder="from" value="${s.vo.from??''}" onchange="if(this.value==='')delete sc(${i}).vo.from;else sc(${i}).vo.from=+this.value;save()">
@@ -277,6 +278,13 @@ function sceneRow(s,i,tl){
           <input placeholder="windows [[a,b],[c,d]]" value="${esc(win)}" style="width:170px" onchange="setWin(${i},this.value)"></label>
         <label>title <input value="${esc(s.title?s.title.join(' | '):'')}" placeholder="KICKER | NAME | 4:06 | sub" style="width:220px" onchange="sc(${i}).title=this.value?this.value.split('|').map(x=>x.trim()):null;save()"></label>
       </div>
+      ${s.shots&&s.shots.length?`<div style="margin-top:6px">${s.shots.map((x,j)=>`<div class="f" style="margin-top:3px"><span class="pill">${j+1}</span>
+          <select onchange="sc(${i}).shots[${j}].file=this.value;save()">${S.raw.map(c=>`<option ${c===x.file?'selected':''}>${esc(c)}</option>`).join('')}</select>
+          <label>in <input type="number" step="0.1" value="${x.in||0}" onchange="sc(${i}).shots[${j}].in=+this.value;save()"></label>
+          <label>crop <input value="${esc(x.crop||'auto')}" style="width:70px" onchange="sc(${i}).shots[${j}].crop=this.value;save()"></label>
+          <label>weight <input type="number" step="0.5" value="${x.w||1}" style="width:56px" onchange="sc(${i}).shots[${j}].w=+this.value;save()" title="share of the scene's time"></label>
+          ${x.label?`<span class="pill or">${esc(x.label)}</span>`:''}
+          <button class="ghost sm" onclick="event.stopPropagation();moveShot(${i},${j},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();moveShot(${i},${j},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();delShot(${i},${j})">✕</button></div>`).join('')}</div>`:''}
       <div class="f" style="margin-top:6px">
         <label>fx ${['zoomcut','storm','glass','chat'].map(f=>`<span class="pill ${(s.fx||[]).includes(f)?'or':''}" style="cursor:pointer" onclick="event.stopPropagation();toggleFx(${i},'${f}')">${f}</span>`).join('')}</label>
         <label>inset <input value="${esc(s.inset?.file||'')}" placeholder="assets/erg.png" style="width:140px" onchange="setObj(${i},'inset','file',this.value)"><input value="${esc(s.inset?.label||'')}" placeholder="label" style="width:90px" onchange="setObj(${i},'inset','label',this.value)"><input type="number" step="0.1" value="${s.inset?.at??''}" placeholder="at s" onchange="setObj(${i},'inset','at',+this.value)"></label>
@@ -289,12 +297,16 @@ function sceneRow(s,i,tl){
 }
 const p=()=>S.project, sc=i=>S.project.scenes[i];
 function setWin(i,v){try{sc(i).vo.windows=v?JSON.parse(v):undefined; if(!v) delete sc(i).vo.windows; save()}catch(e){alert('windows must be JSON like [[1.2,3.4],[5,6]]')}}
+function renameScene(i,v){v=v.trim().replace(/\s+/g,'_'); if(!v||p().scenes.some((s,k)=>k!==i&&s.key===v)){alert('name must be unique');render();return} const s=sc(i); if(!s.parts&&S.data&&S.data[s.key]) s.parts=[s.key]; s.key=v; save()}
+function addShot(i){const s=sc(i); if(!s.shots||!s.shots.length){s.shots=s.clip?[{file:s.clip,in:s.in||0,crop:s.crop||'auto',w:1}]:[]} s.shots.push({file:S.raw[0]||'',in:0,crop:'auto',w:1}); save()}
+function delShot(i,j){const s=sc(i); s.shots.splice(j,1); if(!s.shots.length) s.shots=null; save()}
+function moveShot(i,j,d){const a=sc(i).shots; const k=j+d; if(k<0||k>=a.length) return; [a[j],a[k]]=[a[k],a[j]]; save()}
 function addScene(){const k=stationKeys().find(k=>!p().scenes.some(s=>s.key===k))||'scene'; p().scenes.push({key:k,clip:S.raw[0]||'',in:0,crop:'auto',amb_db:-9,vo:{file:'main'},caption:'',title:null}); selScene=p().scenes.length-1; save()}
 function del(i){if(confirm('remove scene '+sc(i).key+'?')){p().scenes.splice(i,1); selScene=Math.max(0,selScene-1); save()}}
 function move(i,d){const a=p().scenes; const j=i+d; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; selScene=j; save()}
 function toggleFx(i,f){const a=new Set(sc(i).fx||[]); a.has(f)?a.delete(f):a.add(f); sc(i).fx=[...a]; save()}
 function setObj(i,k,f,v){const o=sc(i)[k]||{}; if(v===''||Number.isNaN(v)) delete o[f]; else o[f]=v; sc(i)[k]=o.file?o:null; save()}
-function useClip(f){if(!p().scenes.length) addScene(); sc(selScene).clip=f; save()}
+function useClip(f){if(!p().scenes.length) addScene(); const s=sc(selScene); if(s.shots&&s.shots.length) s.shots.push({file:f,in:0,crop:'auto',w:1}); else s.clip=f; save()}
 function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
   if(selWord==null&&(v.from!=null||v.windows||v.file!==name)&&!confirm(`Change ${sc(selScene).key}'s voice-over window? (it is set already)`)) return;
   v.file=name; delete v.windows;
@@ -315,7 +327,7 @@ function openPlayer(file,t){const c=S.clips.find(x=>x.file===file); if(!c||!c.pr
   v.onloadedmetadata=()=>{v.currentTime=t||0}; v.ontimeupdate=()=>{$('ptime').textContent=v.currentTime.toFixed(2)+' s'}; $('pdlg').showModal(); v.focus();}
 function showPreview(key){const v=$('pv'); PCLIP=null; v.src=`/files/${SID}/build/preview/${key}.mp4?${Date.now()}`; $('ptitle').textContent='preview · '+key; $('pset').disabled=true; v.onloadedmetadata=()=>v.play(); $('pdlg').showModal()}
 function pstep(fr){const v=$('pv'); v.pause(); v.currentTime=Math.max(0,v.currentTime+fr/30)}
-function psetIn(){const s=sc(selScene); if(!s) return; s.clip=PCLIP; s.in=Math.round($('pv').currentTime*10)/10; save(true); $('pdlg').close()}
+function psetIn(){const s=sc(selScene); if(!s) return; const t=Math.round($('pv').currentTime*10)/10; if(s.shots&&s.shots.length){const x=s.shots.find(x=>x.file===PCLIP); if(x) x.in=t; else s.shots.push({file:PCLIP,in:t,crop:'auto',w:1})} else {s.clip=PCLIP; s.in=t} save(true); $('pdlg').close()}
 document.addEventListener('keydown',e=>{if(!$('pdlg').open) return; if(e.key==='ArrowLeft'){pstep(e.shiftKey?-30:-1);e.preventDefault()} else if(e.key==='ArrowRight'){pstep(e.shiftKey?30:1);e.preventDefault()} else if(e.key===' '){const v=$('pv'); v.paused?v.play():v.pause(); e.preventDefault()} else if(e.key==='Enter'){psetIn()}});
 let MUSIC=[], MUSIC_DIR='';
 async function loadMusic(){try{const r=await api('/api/music'); MUSIC=r.files; MUSIC_DIR=r.dir}catch(e){}}
@@ -327,7 +339,7 @@ function replaceFile(kind,name){const i=document.createElement('input'); i.type=
     showLog(`replacing ${kind}/${name} …`); const r=await fetch(`/api/s/${SID}/replace`,{method:'POST',body:fd}); logLine(r.ok?`replaced ${name} — scenes using it will be recut on the next build${kind==='vo'?'; run 3 · Transcribe again':''}`:'replace failed: '+await r.text()); refresh()}; i.click()}
 async function deleteFile(kind,name,used){if(!confirm(`Delete ${kind}/${name}?${used?` It is used by ${used} scene(s) — they will need another clip.`:''}`)) return;
   try{const r=await api(`/api/s/${SID}/file?kind=${kind}&name=${encodeURIComponent(name)}`,{method:'DELETE'}); if(r.orphaned_scenes?.length) alert('Pick a new clip for: '+r.orphaned_scenes.join(', ')); refresh()}catch(e){alert(e.message)}}
-function pick(kind){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept=kind==='raw'?'video/*,.mov,.mp4':'audio/*,.m4a'; i.onchange=()=>upload(kind,i.files); i.click()}
+function pick(kind){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept=kind==='raw'?'video/*,image/*,.mov,.mp4,.jpg,.png,.heic':'audio/*,.m4a'; i.onchange=()=>upload(kind,i.files); i.click()}
 async function upload(kind,files){if(!files.length) return; const fd=new FormData(); fd.append('kind',kind); for(const f of files) fd.append('files',f);
   showLog(`uploading ${files.length} file(s) to ${kind}/ …`); try{await fetch(`/api/s/${SID}/upload`,{method:'POST',body:fd}); logLine('uploaded — contact sheets made'); await refresh()}catch(e){logLine('upload failed: '+e.message)}}
 

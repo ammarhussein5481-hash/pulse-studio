@@ -88,7 +88,22 @@ function autoMeta(key){
         if(d.hr&&!R) parts.push(`AVG <b>${d.hr}</b> BPM`); if(d.max) parts.push(`MAX <b>${d.max}</b> BPM`);}
   return [`STATION ${String(i+1).padStart(2,"0")}`, d.station.toUpperCase(), mm(d.erg?d.erg[0]:d.s), parts.join(" · ")];
 }
-const META=new Proxy({},{get:(_,k)=>autoMeta(k)});
+// a scene that summarises several data parts (a "workout" phase = all reps): one aggregated record
+function aggregate(parts){ const ds=parts.map(k=>D[k]).filter(Boolean); if(!ds.length) return null; if(ds.length===1) return ds[0];
+  const s=ds.reduce((a,d)=>a+(d.s||0),0), m=ds.reduce((a,d)=>a+(d.m||0),0); const hrs=ds.filter(d=>d.hr&&d.s); const hr=hrs.length?Math.round(hrs.reduce((a,d)=>a+d.hr*d.s,0)/hrs.reduce((a,d)=>a+d.s,0)):null;
+  const reps=ds.filter(d=>d.rep); const paces=reps.map(d=>d.s/(d.m/1000)); const trace=[].concat(...ds.map(d=>d.trace||[])); const step=Math.max(1,Math.floor(trace.length/60));
+  return {station:reps.length?`${reps.length} × ${km1(reps[0].m)} KM`:"WORKOUT", s, m, hr, max:Math.max(...ds.map(d=>d.max||0))||null, elev:ds.reduce((a,d)=>a+(d.elev||0),0),
+    reps:reps.length||null, best:paces.length?Math.min(...paces):null, avgpace:reps.length?paces.reduce((a,b)=>a+b,0)/paces.length:null, rec_s:reps[0]?.rec_s,
+    trace:trace.filter((_,i)=>i%step===0), laps:ds.length>1?ds.map(d=>[d.s,d.m,d.hr]):undefined, agg:true, keys:parts}; }
+function sceneData(key){ const o=OPT[key]||{}; return o.parts&&o.parts.length?aggregate(o.parts):D[key]; }
+function autoMetaScene(key){ const o=OPT[key]||{}; const d=sceneData(key); let m;
+  if(d&&d.agg){ const i=ORDER.indexOf(o.parts[0]); const no=`${KICK} ${String(i+1).padStart(2,"0")}–${String(ORDER.indexOf(o.parts[o.parts.length-1])+1).padStart(2,"0")}`;
+    if(d.reps){ m=[`THE WORK${SES.target?` · TARGET ${SES.target}`:""}`, d.station, mm(d.avgpace), [`AVG <b>${mm(d.avgpace)}</b> /KM`, `BEST <b>${mm(d.best)}</b>`, d.hr?`AVG <b>${d.hr}</b> BPM`:"", d.rec_s?`REC <b>${mm(d.rec_s)}</b>`:""].filter(Boolean).join(" · ")]; }
+    else m=[no, (key.replace(/_/g," ")).toUpperCase(), mm(d.s), [d.m?`<b>${km1(d.m)}</b> KM`:"", d.hr?`AVG <b>${d.hr}</b> BPM`:"", d.max?`MAX <b>${d.max}</b>`:""].filter(Boolean).join(" · ")]; }
+  else m=autoMeta(key);
+  if(o.name) m=[m[0], o.name.toUpperCase(), m[2], m[3]];
+  return m; }
+const META=new Proxy({},{get:(_,k)=>autoMetaScene(k)});
 function km1(m){const v=Math.round(m/100)/10; return v%1?v.toFixed(1):String(v)}
 const FINALS=()=>{const min=Math.round((SES.total_s||0)/60), km=(SES.distance_m||0)/1000;
   const F={run:[[km,"KM",1],[min,"MINUTES"],[SES.avg_hr||0,"AVG BPM"],[SES.kcal||0,"KCAL"]],
@@ -157,6 +172,17 @@ function zones(svg,s){ // closing: HR zones stacked bar + session trace
   const upd=hrTrace(svg,s.full_trace,120,960,30,150,s.max_hr);
   return p=>{upd(clamp(p*1.3,0,1)); segs.forEach((g,i)=>{const q=eo(clamp((p*3-i*0.3),0,1)); g.r.setAttribute("width",g.w*q);});};
 }
+function repsAll(svg,d){ // workout phase: every rep as a pace bar, lit in sequence, target line, HR across the whole set
+  const keys=d.keys.filter(k=>D[k]&&D[k].rep); const secs=keys.map(k=>D[k].s/(D[k].m/1000)); const tgt=SES.target&&/^\d+:\d\d$/.test(SES.target)?toSec(SES.target):null;
+  const all=secs.concat(tgt?[tgt]:[]); const fast=Math.min(...all)-8, slow=Math.max(...all)+8; const x0=120,x1=960,y1=150,hmax=110; const n=keys.length, w=Math.min(90,(x1-x0)/n-10), gap=(x1-x0-n*w)/Math.max(1,n-1);
+  const H=sec=>hmax*(0.25+0.75*(slow-sec)/(slow-fast)); const best=Math.min(...secs);
+  const bars=keys.map((k,i)=>{const x=x0+i*(w+gap); const on=secs[i]===best; const r=el("rect",{x,y:y1,width:w,height:0,rx:6,fill:on?"__OR__":"__BONE__",opacity:on?1:.75}); svg.appendChild(r);
+    const t=el("text",{x:x+w/2,y:y1+30,"font-size":22,"text-anchor":"middle",opacity:.9}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i])};});
+  if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:y-10,"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
+  const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM · BEST IN ORANGE`; svg.appendChild(hd);
+  const upd=d.trace&&d.trace.length>1?hrTrace(svg,d.trace,120,960,196,280,d.max):null;
+  return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.3-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); if(upd) upd(clamp(p*1.2,0,1));};
+}
 function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep lit, target pace as a dashed line, HR trace of this rep beneath
   const keys=ORDER.filter(k=>/^rep\d+$/.test(k)); const secs=keys.map(k=>D[k].s/(D[k].m/1000)); const tgt=SES.target&&/^\d+:\d\d$/.test(SES.target)?toSec(SES.target):null;
   const all=secs.concat(tgt?[tgt]:[]); const fast=Math.min(...all)-8, slow=Math.max(...all)+8; const x0=120,x1=960,y1=150,hmax=110; const n=keys.length, w=Math.min(90,(x1-x0)/n-10), gap=(x1-x0-n*w)/Math.max(1,n-1);
@@ -173,7 +199,8 @@ const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>t
  closing:(s)=>zones(s,D._session)};
 let upd=null;
 function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.removeChild(svg.firstChild); upd=null;
-  const b=((KIND==="hyrox"||sc.key==="closing")&&BUILD[sc.key])||(/^rep\d+$/.test(sc.key)&&D[sc.key]?(s,d)=>reps(s,d,sc.key):null)||(D[sc.key]&&(D[sc.key].laps&&D[sc.key].laps.length>1?(s,d)=>lapBars(s,d):(D[sc.key].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):D[sc.key]; if(b&&has) upd=b(svg,D[sc.key]);
+  const SD=sceneData(sc.key);
+  const b=(SD&&SD.agg?(SD.reps?(s)=>repsAll(s,SD):((SD.laps&&SD.laps.length>1)?(s)=>lapBars(s,SD):(SD.trace||[]).length>1?(s)=>hrTrace(s,SD.trace,120,960,40,230,SD.max):null)):null)||((KIND==="hyrox"||sc.key==="closing")&&BUILD[sc.key])||(/^rep\d+$/.test(sc.key)&&D[sc.key]?(s,d)=>reps(s,d,sc.key):null)||(D[sc.key]&&(D[sc.key].laps&&D[sc.key].laps.length>1?(s,d)=>lapBars(s,d):(D[sc.key].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):(SD||D[sc.key]); if(b&&has) upd=b(svg,SD||D[sc.key]);
   const m=META[sc.key]; $("kicker").textContent=m[0];
   if(sc.key==="closing"){$("name").innerHTML=`<svg width="104" height="104" viewBox="0 0 100 100" style="vertical-align:-14px;margin-right:22px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"><rect x="2" y="2" width="96" height="96" rx="22" fill="__OR__"/><rect x="22" y="58" width="14" height="22" rx="3" fill="__BONE__"/><rect x="43" y="42" width="14" height="38" rx="3" fill="__BONE__"/><rect x="64" y="24" width="14" height="56" rx="3" fill="__BONE__"/></svg>${m[1]}`;}
   else $("name").textContent=m[1];
@@ -207,7 +234,8 @@ function render(t){
   const ST=fx.has("storm")?Math.min(0.9,0.16*(+$("storm").dataset.n||0)):0, uu=Math.max(0,u-ST);
   if(ST){const k=Math.floor(u/0.16), on=u<ST; $("storm").style.display=on?"block":"none"; [...$("storm").children].forEach((c,i)=>{c.style.display=i===k?"block":"none"; const q=(u-k*0.16)/0.16; c.style.transform=`scale(${1.25-0.25*eo(clamp(q*3,0,1))})`;});}
   const vis=clamp(u/0.3,0,1)*clamp(rem/0.3,0,1); $("top").style.opacity=vis; $("dia").style.opacity=vis*clamp((u-0.5)/0.3,0,1); $("grid").style.opacity=vis; $("cap").style.opacity=vis; $("capen").style.opacity=vis*0.85;
-  const i=ORDER.indexOf(sc.key); const N=Math.max(1,ORDER.length), n=fin?N:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/N*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / ${String(N).padStart(2,"0")}`; $("pl").style.opacity=vis;
+  const PH=TL.filter(x=>x.key!=="intro"&&x.key!=="closing").map(x=>x.key); const phased=PH.some(k=>(OPT[k]||{}).parts&&OPT[k].parts.length>1)||PH.some(k=>!D[k]&&(OPT[k]||{}).parts);
+  const i=phased?PH.indexOf(sc.key):ORDER.indexOf(sc.key); const N=Math.max(1,phased?PH.length:ORDER.length), n=fin?N:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/N*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / ${String(N).padStart(2,"0")}`; $("pl").style.opacity=vis;
   $("kicker").style.transform=`translateY(${(1-eo(clamp(uu/0.35,0,1)))*-18}px)`; $("kicker").style.opacity=ST&&u<ST?0:1;
   const a=ST&&u<ST?0:eo(clamp((uu-0.08)/0.4,0,1)); $("name").style.transform=`scale(${0.92+0.08*a})`; $("name").style.opacity=a;
   if(m[2]){const p=eo(clamp((uu-0.15)/0.6,0,1)); $("big").textContent=mmss(toSec(m[2])*p); $("big").style.opacity=ST&&u<ST?0:1; const pop=uu>0.75&&uu<0.95?1+0.06*Math.sin((uu-0.75)/0.2*Math.PI):1; $("big").style.transform=`scale(${pop})`;} else $("big").textContent="";
