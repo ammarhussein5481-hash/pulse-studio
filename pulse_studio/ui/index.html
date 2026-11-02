@@ -198,11 +198,14 @@ function render(){
   <section><h2>Voice-over script <span class="pill">${p.scenes.filter(s=>s.script).length} lines</span> <button class="ghost sm" onclick="copyScript()">Copy all</button> <label class="hint" style="margin-left:8px"><input type="checkbox" ${(p.captions?.en??true)?'checked':''} onchange="(p().captions=p().captions||{}).en=this.checked;save()"> English line under the captions</label></h2>
     <p class="hint">Generated from the clips + session data (step 3). Record it as ONE file, ~1 s pause between lines, numbers as written — then drop it in Voice-over and Transcribe. Edit any line here; it is also the caption. Ask the Assistant to reword if you want another tone.</p>
     ${p.scenes.some(s=>s.script)?`<p class="hint">${p.scenes.filter(s=>s.script_ok).length}/${p.scenes.length} verified · ${S.match?`matched to the recording: ${S.match.filter(r=>r.ok).length} ok, ${S.match.filter(r=>r.ok===false).length} to check`:'after Transcribe run <b>4b · Match</b> to compare with what you actually said'}</p>
-    <table><tr><th style="width:90px">scene</th><th>Arabic — what to record (also the caption)</th><th style="width:28%">English line</th><th style="width:70px">verified</th></tr>
+    <p class="hint">Record line by line: press <b>● Rec</b> on a line, read it, press <b>■ Stop</b> — silence is trimmed and all takes are joined into <code>vo/main.m4a</code> in scene order (${Object.keys(S.lines||{}).length}/${p.scenes.length} recorded). Re-record any line any time, then Transcribe → Match.</p>
+    <table><tr><th style="width:90px">scene</th><th>Arabic — what to record (also the caption)</th><th style="width:24%">English line</th><th style="width:150px">take</th><th style="width:60px">ok</th></tr>
     ${p.scenes.map((s,i)=>{const m=(S.match||[]).find(r=>r.key===s.key); return `<tr><td><span class="pill">${esc(s.key)}</span></td>
       <td><textarea style="width:100%;min-height:40px;font-family:'Noto Kufi Arabic';direction:rtl;font-size:16px" onchange="const o=sc(${i}).script;sc(${i}).script=this.value;if(!sc(${i}).caption||sc(${i}).caption===o)sc(${i}).caption=this.value;sc(${i}).script_ok=false;save()">${esc(s.script||'')}</textarea>
         ${m&&m.ok!==null&&m.ok!==undefined?`<div class="hint ${m.ok?'':'warn'}" style="direction:rtl;text-align:right;margin-top:3px">${m.ok?'✓':'!'} heard (${Math.round((m.ratio||0)*100)}%${m.from!=null?` · ${m.from}–${m.to}s`:''}): ${esc(m.heard||m.note||'')}${(m.diffs||[]).filter(d=>d.number).map(d=>`<br><b>number differs</b> — script «${esc(d.expected)}» · heard «${esc(d.heard)}»`).join('')}</div>`:''}</td>
       <td><textarea style="width:100%;min-height:40px;font-size:13px" onchange="sc(${i}).caption_en=this.value;save()">${esc(s.caption_en||'')}</textarea></td>
+      <td><div class="row" style="gap:4px">${lineRec===s.key?`<button class="sm" onclick="recLine('${esc(s.key)}')"><span class="rec"></span> Stop</button>`:`<button class="ghost sm" onclick="recLine('${esc(s.key)}')" ${lineRec?'disabled':''}>● Rec</button>`}
+        ${S.lines?.[s.key]!=null?`<button class="ghost sm" onclick="playLine('${esc(s.key)}')" title="play take">▶ ${S.lines[s.key]}s</button><button class="ghost sm" onclick="delLine('${esc(s.key)}')" title="delete take">✕</button>`:''}</div></td>
       <td style="text-align:center"><input type="checkbox" ${s.script_ok?'checked':''} onchange="sc(${i}).script_ok=this.checked;save()" title="I read it, it's right"></td></tr>`}).join('')}</table>`:'<p class="hint">run <b>3 · Script</b> after Clips and Data</p>'}
   </section>
 
@@ -237,7 +240,9 @@ function render(){
 
   <section><h2>Builds <span class="pill">${S.outs.length}</span></h2>
     ${S.outs.length?`<div class="outs"><div>${S.outs.slice().reverse().map(o=>`<div class="row" style="margin-bottom:6px"><button class="ghost sm" onclick="play('${o.file}')">v${o.v}</button><span class="hint">${o.mb} MB · ${new Date(o.mtime*1000).toLocaleTimeString()}</span><a class="hint" href="/files/${SID}/out/${o.file}" download>download</a></div>`).join('')}
-      <div class="row" style="margin-top:12px"><input id="pubto" placeholder="user@host:/path/ (or PULSE_SHARE)" value="${esc(S.env.share)}" style="flex:1"><button class="sm" onclick="run('publish',{to:$('pubto').value})">Publish latest</button></div></div>
+      <div class="row" style="margin-top:12px"><input id="pubto" placeholder="user@host:/path/ (or PULSE_SHARE)" value="${esc(S.env.share)}" style="flex:1"><button class="sm" onclick="run('publish',{to:$('pubto').value})">Publish latest</button>
+      <button class="sm" onclick="run('send')" ${S.env.tg?'':'disabled title="set PULSE_TG_TOKEN and PULSE_TG_CHAT, then restart pulse-reel ui"'}>Send to phone</button></div>
+      ${S.env.tg?'':'<p class="hint">Send to phone needs <code>PULSE_TG_TOKEN</code> / <code>PULSE_TG_CHAT</code> in the environment (the Pulse Telegram bot).</p>'}</div>
       <div><video id="player" controls src="/files/${SID}/out/${S.outs[S.outs.length-1].file}"></video>
       ${S.outs[S.outs.length-1].sheet?`<img style="width:100%;margin-top:8px;border-radius:6px" src="/files/${SID}/out/${S.outs[S.outs.length-1].sheet}">`:''}</div></div>`
       :'<p class="hint">nothing built yet</p>'}
@@ -322,6 +327,19 @@ function pick(kind){const i=document.createElement('input'); i.type='file'; i.mu
 async function upload(kind,files){if(!files.length) return; const fd=new FormData(); fd.append('kind',kind); for(const f of files) fd.append('files',f);
   showLog(`uploading ${files.length} file(s) to ${kind}/ …`); try{await fetch(`/api/s/${SID}/upload`,{method:'POST',body:fd}); logLine('uploaded — contact sheets made'); await refresh()}catch(e){logLine('upload failed: '+e.message)}}
 
+let lineRec=null, lineMR=null, lineChunks=[];
+async function recLine(key){
+  if(lineMR){lineMR.stop(); return}
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false}});
+  lineMR=new MediaRecorder(stream,{mimeType:'audio/webm;codecs=opus'}); lineChunks=[]; lineRec=key; render();
+  lineMR.ondataavailable=e=>lineChunks.push(e.data);
+  lineMR.onstop=async()=>{stream.getTracks().forEach(t=>t.stop()); const fd=new FormData(); fd.append('key',key); fd.append('file',new Blob(lineChunks,{type:'audio/webm'}),key+'.webm');
+    lineMR=null; lineRec=null; const r=await fetch(`/api/s/${SID}/record_line`,{method:'POST',body:fd}); if(!r.ok) alert(await r.text()); else {const j=await r.json(); toast(`${key}: ${j.duration}s saved · main.m4a rebuilt (${j.lines.length} lines)`)} refresh()};
+  lineMR.start();
+}
+function playLine(key){const a=new Audio(`/files/${SID}/vo/lines/${key}.m4a?${Date.now()}`); a.play()}
+async function delLine(key){if(!confirm('Delete the take for '+key+'?')) return; await api(`/api/s/${SID}/record_line?key=${encodeURIComponent(key)}`,{method:'DELETE'}); refresh()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&lineMR) lineMR.stop()});
 async function toggleRec(){
   if(rec){rec.stop(); return}
   const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:false,noiseSuppression:false}});

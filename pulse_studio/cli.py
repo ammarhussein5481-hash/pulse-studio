@@ -12,6 +12,7 @@
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
   pulse-reel script <dir> [--force]                         Arabic voice-over lines per scene with the real numbers (+ English captions) → record them
   pulse-reel match <dir>                                    align script ↔ recording: voice windows per scene + what was heard, numbers checked
+  pulse-reel send <dir> [--version N]                       send the reel + post copy to your phone (Pulse Telegram bot; PULSE_TG_TOKEN / PULSE_TG_CHAT)
   pulse-reel preview <dir> <key> [--len 3]                 3 s of one scene with overlay + voice → build/preview/<key>.mp4
   pulse-reel import <dir> <sdcard-folder> [--date|--all]    copy that day's videos → raw/, audio → vo/
   pulse-reel suggest <dir> [--all]                          first draft: clips in shoot order, in-points from the motion profile
@@ -176,6 +177,36 @@ def cmd_preset(a):
             for k, v in pr.get("scenes", {}).get(s["key"], {}).items(): s[k] = v
         project.save(a.dir, proj); print("applied preset", a.name)
 
+def post_copy(proj: dict, data: dict) -> str:
+    """Caption for the post: first Arabic line, totals, English line, hashtags."""
+    s = data.get("_session", {}); kind = proj["session"].get("type", "hyrox"); scs = proj["scenes"]
+    ar = next((x.get("script") or x.get("caption") for x in scs if x["key"] == "intro"), "") or (scs[0].get("script", "") if scs else "")
+    closing = next((x for x in scs if x["key"] == "closing"), {})
+    tags = {"hyrox": "#hyrox #hyroxtraining #riyadh #garmin #pulse", "run": "#running #riyadhrunners #garmin #pulse", "ride": "#cycling #riyadh #garmin #pulse",
+            "strength": "#strength #gym #riyadh #garmin #pulse"}.get(kind, "#training #garmin #pulse")
+    parts = [ar.strip(), closing.get("script", "").strip(), "", closing.get("caption_en", "").strip(), "", tags]
+    return "\n".join(x for x in parts if x is not None).strip()
+
+def cmd_send(a):
+    """Send the latest (or --version N) reel to Ammar's phone via the Pulse Telegram bot, with the post copy as caption."""
+    import urllib.request, uuid
+    tok, chat = os.environ.get("PULSE_TG_TOKEN"), os.environ.get("PULSE_TG_CHAT")
+    if not tok or not chat: raise SystemExit("set PULSE_TG_TOKEN and PULSE_TG_CHAT (the Pulse bot token + your chat id)")
+    proj = project.load(a.dir); outdir = Path(a.dir) / "out"; v = int(a.version) if a.version else _latest_version(outdir, proj["name"])
+    src = outdir / f"{proj['name']}-v{v}.mp4"
+    if not src.exists(): raise SystemExit(f"no {src.name}")
+    if src.stat().st_size > 49_000_000: raise SystemExit("file over Telegram's 50 MB bot limit — build at a lower bitrate")
+    cap = post_copy(proj, datamod.fetch(a.dir, proj)); info = mix.verify(src)
+    b = uuid.uuid4().hex; CRLF = "\r\n"
+    def fld(n, v): return f"--{b}{CRLF}Content-Disposition: form-data; name=\"{n}\"{CRLF}{CRLF}{v}{CRLF}".encode()
+    body = fld("chat_id", chat) + fld("caption", f"v{v} · {proj['name']}\n\n{cap}") + fld("supports_streaming", "true") + fld("width", 1080) + fld("height", 1920) + fld("duration", int(info["duration"]))
+    body += f"--{b}{CRLF}Content-Disposition: form-data; name=\"video\"; filename=\"{src.name}\"{CRLF}Content-Type: video/mp4{CRLF}{CRLF}".encode() + src.read_bytes() + f"{CRLF}--{b}--{CRLF}".encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendVideo", data=body, headers={"Content-Type": f"multipart/form-data; boundary={b}"})
+    with urllib.request.urlopen(req, timeout=300) as r: ok = json.load(r).get("ok")
+    if not ok: raise SystemExit("Telegram refused the upload")
+    (outdir / f"{proj['name']}-v{v}.post.txt").write_text(cap, encoding="utf-8")
+    print(f"sent {src.name} ({info['mb']} MB) to Telegram with the post copy (also in out/{proj['name']}-v{v}.post.txt)")
+
 def cmd_publish(a):
     proj = project.load(a.dir); outdir = Path(a.dir) / "out"; v = _latest_version(outdir, proj["name"])
     if not v: raise SystemExit("nothing built yet")
@@ -202,6 +233,7 @@ def main(argv=None):
     p = sp.add_parser("publish"); p.add_argument("dir"); p.add_argument("--to"); p.set_defaults(f=cmd_publish)
     p = sp.add_parser("script"); p.add_argument("dir"); p.add_argument("--force", action="store_true", help="overwrite lines you edited"); p.set_defaults(f=cmd_script)
     p = sp.add_parser("match"); p.add_argument("dir"); p.set_defaults(f=cmd_match)
+    p = sp.add_parser("send"); p.add_argument("dir"); p.add_argument("--version"); p.set_defaults(f=cmd_send)
     p = sp.add_parser("preview"); p.add_argument("dir"); p.add_argument("key"); p.add_argument("--len", default="3"); p.set_defaults(f=cmd_preview)
     p = sp.add_parser("import"); p.add_argument("dir"); p.add_argument("src"); p.add_argument("--date"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_import)
     p = sp.add_parser("suggest"); p.add_argument("dir"); p.add_argument("--all", action="store_true", help="also overwrite in-points already set"); p.set_defaults(f=cmd_suggest)

@@ -17,6 +17,7 @@ git clone https://github.com/ammarhussein5481-hash/pulse-studio.git
 cd pulse-studio
 ./setup.sh                      # ffmpeg + VAAPI driver, python venv, fonts, chrome-headless-shell (~400 MB total)
 echo 'export PULSE_URL=https://<your pulse dashboard> PULSE_TOKEN=<its link token>' >> ~/.bashrc
+echo 'export PULSE_TG_TOKEN=<telegram bot token> PULSE_TG_CHAT=<your chat id>' >> ~/.bashrc   # optional: "Send to phone"
 ```
 
 ## Two ways to use it
@@ -64,6 +65,7 @@ pulse-reel import   sessions/2026-11-08-hyrox /media/$USER/SDCARD   # that day's
 pulse-reel suggest  sessions/2026-11-08-hyrox   # first draft: clips in shoot order, in-points from motion
 pulse-reel preset   save hyrox-default --dir sessions/2026-11-08-hyrox   # reuse fx/audio/length next time
 pulse-reel publish  sessions/2026-11-08-hyrox --to user@host:/var/www/share/   # or set PULSE_SHARE
+pulse-reel send     sessions/2026-11-08-hyrox   # to your phone via a Telegram bot (PULSE_TG_TOKEN / PULSE_TG_CHAT) with the post copy
 ```
 
 On the VPS, `server/export_session.py` (copied to `/work/pulse-studio-server/` inside the Garmin container) exports every new session — HYROX (watch app) and the last 30 days of Garmin runs, rides and strength sessions — plus the index the picker reads. Run it from cron every 10 minutes:

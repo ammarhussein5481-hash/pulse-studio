@@ -12,7 +12,7 @@ from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
-STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match"}
+STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match", "send"}
 RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
@@ -61,11 +61,12 @@ def _state(d: Path) -> dict:
     vo = sorted(f.name for f in (d / "vo").glob("*") if f.suffix.lower() in VO_EXT)
     stt = {f.stem[4:]: _jload(f) for f in b.glob("stt_*.json")}
     stills = sorted(f.name for f in (b / "stills").glob("*.png")) if (b / "stills").exists() else []
+    lines = {f.stem: round(config.probe(f)["duration"], 1) for f in (d / "vo" / "lines").glob("*.m4a")} if (d / "vo" / "lines").exists() else {}
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
-            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "frames": (b / "frames").exists(),
-            "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", "")}}
+            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines, "frames": (b / "frames").exists(),
+            "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", ""), "tg": bool(os.environ.get("PULSE_TG_TOKEN"))}}
 
 # ---------- routes ----------
 @app.get("/", response_class=HTMLResponse)
@@ -211,6 +212,51 @@ async def record(sid: str, name: str = Form(...), file: UploadFile = File(...)):
     for s in (d / "build").glob(f"stt_{name}.json"): s.unlink()
     return {"file": out.name}
 
+def _assemble_lines(d: Path) -> dict:
+    """vo/lines/<key>.m4a (one per scene, any order recorded) → vo/main.m4a in scene order with 0.8 s gaps.
+    Scenes then all use vo.file = main; `match` finds each line's window. Returns which scenes have a take."""
+    pj = project.load(d); ld = d / "vo" / "lines"; takes = {}
+    for sc in pj["scenes"]:
+        f = ld / f"{sc['key']}.m4a"
+        if f.exists(): takes[sc["key"]] = f
+    if not takes: return {"lines": [], "main": None}
+    gap = ld / ".gap.wav"
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.8", str(gap)], check=True)
+    parts = []
+    for k, f in takes.items():
+        parts += [f, gap]
+    parts = parts[:-1]; ins = [x for f in parts for x in ("-i", str(f))]
+    fc = "".join(f"[{i}:a]aformat=sample_rates=48000:channel_layouts=mono[a{i}];" for i in range(len(parts))) + "".join(f"[a{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1[out]"
+    out = d / "vo" / "main.m4a"
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *ins, "-filter_complex", fc, "-map", "[out]", "-c:a", "aac", "-b:a", "128k", str(out)], check=True)
+    pj["vo"]["main"] = "vo/main.m4a"
+    for sc in pj["scenes"]:
+        if sc["key"] in takes: sc.setdefault("vo", {}); sc["vo"] = {"file": "main"}
+    project.save(d, pj)
+    for s in (d / "build").glob("stt_main.json"): s.unlink()
+    (d / "build" / "match.json").unlink(missing_ok=True)
+    return {"lines": list(takes), "main": out.name}
+
+@app.post("/api/s/{sid}/record_line")
+async def record_line(sid: str, key: str = Form(...), file: UploadFile = File(...)):
+    """One script line recorded in the browser → vo/lines/<key>.m4a (trimmed of leading/trailing silence), then main.m4a is rebuilt."""
+    d = _sid(sid); key = re.sub(r"[^A-Za-z0-9_-]", "", key)
+    ld = d / "vo" / "lines"; ld.mkdir(parents=True, exist_ok=True); tmp = ld / f".{key}.webm"; out = ld / f"{key}.m4a"
+    with tmp.open("wb") as w:
+        while chunk := await file.read(1 << 20): w.write(chunk)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-i", str(tmp), "-ac", "1", "-ar", "48000",
+                    "-af", "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.15,areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.25,areverse,apad=pad_dur=0.15",
+                    "-c:a", "aac", "-b:a", "128k", str(out)], check=True)
+    tmp.unlink(missing_ok=True)
+    dur = config.probe(out)["duration"]
+    return {"key": key, "duration": round(dur, 2), **_assemble_lines(d)}
+
+@app.delete("/api/s/{sid}/record_line")
+def delete_line(sid: str, key: str):
+    d = _sid(sid); f = d / "vo" / "lines" / f"{Path(key).name}.m4a"
+    if f.exists(): f.unlink()
+    return _assemble_lines(d)
+
 @app.delete("/api/s/{sid}/file")
 def delete_file(sid: str, kind: str, name: str):
     d = _sid(sid); sub = {"raw": "raw", "vo": "vo"}.get(kind)
@@ -285,6 +331,7 @@ async def run_step(sid: str, step: str, req: Request):
     if j.get("no_frames") and step == "build": cmd.append("--no-frames")
     if j.get("times") and step == "stills": cmd.append(j["times"])
     if j.get("to") and step == "publish": cmd += ["--to", j["to"]]
+    if step == "send" and j.get("version"): cmd += ["--version", str(j["version"])]
     if step == "preview":
         if not j.get("key"): raise HTTPException(400, "key required"); 
         cmd += [j["key"], "--len", str(j.get("len", 3))]
