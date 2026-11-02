@@ -10,12 +10,17 @@
   pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4
   pulse-reel audio <dir>                                    re-mix audio only (music/sfx/amb levels changed) → new out version
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
+  pulse-reel preview <dir> <key> [--len 3]                 3 s of one scene with overlay + voice → build/preview/<key>.mp4
+  pulse-reel import <dir> <sdcard-folder> [--date|--all]    copy that day's videos → raw/, audio → vo/
+  pulse-reel suggest <dir> [--all]                          first draft: clips in shoot order, in-points from the motion profile
+  pulse-reel preset save|apply|list|delete <name> --dir <d> fx / audio / length as a reusable template (~/.pulse-studio/presets)
   pulse-reel ui [--port 8787] [--root sessions]             local web app (opens in the browser) over the same steps
 """
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
 from pathlib import Path
-from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix
+from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg
+from .config import FPS, HOME, probe, node, chrome, ffmpeg
 
 def _latest_version(outdir: Path, name: str) -> int:
     vs = [int(p.stem.rsplit("-v", 1)[1]) for p in outdir.glob(f"{name}-v*.mp4") if p.stem.rsplit("-v", 1)[1].isdigit()]
@@ -90,6 +95,66 @@ def cmd_audio(a):
     v = _latest_version(outdir, proj["name"]) + 1; out = outdir / f"{proj['name']}-v{v}.mp4"
     mix.composite(a.dir, proj, tl, out); print(f"done: {out} {mix.verify(out)}")
 
+def cmd_preview(a):
+    """3 s of ONE scene with its overlay + voice, in ~20-40 s instead of a full build → build/preview/<key>.mp4"""
+    proj, tl = _timeline(a); d = Path(a.dir); b = d / "build"; pv = b / "preview"; pv.mkdir(exist_ok=True)
+    s = next((x for x in tl["scenes"] if x["key"] == a.key), None); sc = next((x for x in proj["scenes"] if x["key"] == a.key), None)
+    if not s or not sc: raise SystemExit(f"no scene {a.key}")
+    L = min(float(a.len), s["end"] - s["start"]); src = d / "raw" / sc["clip"]; info = probe(src)
+    media.cut_scene(src, sc, info, float(sc.get("in", 0)), round(L, 3), pv / "v.mp4", pv / "a.m4a")
+    _page(a, proj, tl); f0 = int(round(s["start"] * FPS)); f1 = f0 + int(round(L * FPS))
+    fr = pv / "frames"; shutil.rmtree(fr, ignore_errors=True)
+    subprocess.run([node(), str(Path(overlay.__file__).parent / "render.mjs"), chrome(), str(b / "overlay.html"), "frames", str(fr), str(f0), str(f1), str(FPS)], check=True)
+    mix.vo_track(a.dir, tl, b / "vo_full.wav")
+    out = pv / f"{a.key}.mp4"; amb = float(proj["audio"].get("amb_db", -4))
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-i", str(pv / "v.mp4"), "-start_number", str(f0), "-framerate", str(FPS), "-i", str(fr / "%05d.png"),
+                    "-i", str(pv / "a.m4a"), "-ss", str(s["start"]), "-t", str(L), "-i", str(b / "vo_full.wav"),
+                    "-filter_complex", f"[0:v][1:v]overlay=0:0:format=auto[v];[2:a]volume={amb}dB[amb];[amb][3:a]amix=inputs=2:duration=first:normalize=0[a]",
+                    "-map", "[v]", "-map", "[a]", "-t", str(L), "-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(out)], check=True)
+    print(f"preview: {out}  ({L:.1f}s of {a.key})")
+
+VIDEO_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; AUDIO_EXT = {".m4a", ".mp3", ".wav", ".aac"}
+def cmd_import(a):
+    """Copy a day's files from an SD card / phone folder into raw/ (video) and vo/ (audio)."""
+    import datetime
+    proj = project.load(a.dir); d = Path(a.dir); src = Path(a.src)
+    if not src.exists(): raise SystemExit(f"{src} not found")
+    want = None if a.all else (a.date or proj["session"].get("date"))
+    n = 0
+    for f in sorted(src.rglob("*")):
+        if not f.is_file() or f.name.startswith("."): continue
+        ext = f.suffix.lower(); sub = "raw" if ext in VIDEO_EXT else "vo" if ext in AUDIO_EXT else None
+        if not sub: continue
+        day = datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d")
+        if want and day != want: continue
+        dest = d / sub / f.name
+        if dest.exists() and dest.stat().st_size == f.stat().st_size: print(f"  = {f.name} (already there)"); continue
+        print(f"  + {f.name} → {sub}/  ({f.stat().st_size / 1e6:.0f} MB)", flush=True); shutil.copy2(f, dest); n += 1
+    print(f"imported {n} file(s){' from ' + want if want else ''}" + ("\nnext: pulse-reel ingest " + str(d) if n else ""))
+
+def cmd_suggest(a):
+    proj = project.load(a.dir); notes = sugg.suggest(a.dir, proj, overwrite_in=a.all); project.save(a.dir, proj)
+    print("\n".join("  " + x for x in notes) or "  nothing to suggest"); print("edit project.json / the web app to adjust, then: pulse-reel timeline")
+
+PRESET_KEYS = ("fx", "style", "inset", "phone", "amb_db", "crop")
+def cmd_preset(a):
+    pd = HOME / "presets"; pd.mkdir(parents=True, exist_ok=True)
+    if a.action == "list":
+        for f in sorted(pd.glob("*.json")): print(" ", f.stem); return
+    if a.action == "delete": (pd / f"{a.name}.json").unlink(missing_ok=True); print("deleted", a.name); return
+    proj = project.load(a.dir); f = pd / f"{a.name}.json"
+    if a.action == "save":
+        pr = {"budget_s": proj["vo"].get("budget_s", 60), "audio": proj["audio"], "identity": proj.get("identity"),
+              "scenes": {s["key"]: {k: s[k] for k in PRESET_KEYS if s.get(k) not in (None, [], "auto")} for s in proj["scenes"]}}
+        f.write_text(json.dumps(pr, ensure_ascii=False, indent=1), encoding="utf-8"); print("saved preset", a.name, "→", f); return
+    if a.action == "apply":
+        if not f.exists(): raise SystemExit(f"no preset {a.name} (pulse-reel preset list)")
+        pr = json.loads(f.read_text(encoding="utf-8")); proj["vo"]["budget_s"] = pr.get("budget_s", proj["vo"].get("budget_s", 60))
+        proj["audio"].update(pr.get("audio", {})); proj["identity"] = pr.get("identity") or proj.get("identity")
+        for s in proj["scenes"]:
+            for k, v in pr.get("scenes", {}).get(s["key"], {}).items(): s[k] = v
+        project.save(a.dir, proj); print("applied preset", a.name)
+
 def cmd_publish(a):
     proj = project.load(a.dir); outdir = Path(a.dir) / "out"; v = _latest_version(outdir, proj["name"])
     if not v: raise SystemExit("nothing built yet")
@@ -114,6 +179,10 @@ def main(argv=None):
     p = sp.add_parser("build"); p.add_argument("dir"); p.add_argument("--only"); p.add_argument("--no-frames", action="store_true"); p.set_defaults(f=cmd_build)
     p = sp.add_parser("audio"); p.add_argument("dir"); p.set_defaults(f=cmd_audio)
     p = sp.add_parser("publish"); p.add_argument("dir"); p.add_argument("--to"); p.set_defaults(f=cmd_publish)
+    p = sp.add_parser("preview"); p.add_argument("dir"); p.add_argument("key"); p.add_argument("--len", default="3"); p.set_defaults(f=cmd_preview)
+    p = sp.add_parser("import"); p.add_argument("dir"); p.add_argument("src"); p.add_argument("--date"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_import)
+    p = sp.add_parser("suggest"); p.add_argument("dir"); p.add_argument("--all", action="store_true", help="also overwrite in-points already set"); p.set_defaults(f=cmd_suggest)
+    p = sp.add_parser("preset"); p.add_argument("action", choices=["save", "apply", "list", "delete"]); p.add_argument("name", nargs="?"); p.add_argument("--dir", default="."); p.set_defaults(f=cmd_preset)
     a = ap.parse_args(argv); a.f(a)
 
 if __name__ == "__main__":

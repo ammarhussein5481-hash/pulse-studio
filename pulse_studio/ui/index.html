@@ -154,6 +154,8 @@ function render(){
     <span style="flex:1"></span>
     <label class="hint">Length <input type="number" value="${p.vo.budget_s}" onchange="p().vo.budget_s=+this.value;save()"> s</label>
     <label class="hint">Data <select onchange="p().session.source=this.value;save()"><option ${p.session.source==='pulse'?'selected':''}>pulse</option><option ${p.session.source==='file'?'selected':''}>file</option></select></label>
+    <label class="hint">preset <select id="presel"><option value="">—</option>${(PRESETS||[]).map(n=>`<option>${esc(n)}</option>`).join('')}</select></label>
+    <span class="row" style="gap:4px"><button class="ghost sm" onclick="applyPreset()">Apply</button><button class="ghost sm" onclick="savePreset()">Save as…</button><button class="ghost sm" onclick="deletePreset()" title="delete the selected preset">Delete</button></span>
     ${S.env.token?'':'<span class="pill warn">PULSE_TOKEN not set</span>'}
     <button class="ghost sm" onclick="delSession()" ${job?'disabled':''}>Delete session</button>
   </div>
@@ -170,6 +172,9 @@ function render(){
   <div class="grid2">
   <section><h2>Clips <span class="pill">${S.raw.length} in raw/</span></h2>
     <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files here (or click) · .mov .mp4</div>
+    <div class="row" style="margin-top:8px"><label class="hint">import from <select id="mount">${(MOUNTS||[]).map(m=>`<option>${esc(m)}</option>`).join('')}<option value="">other…</option></select></label>
+      <label class="hint"><input type="checkbox" id="impall"> all dates (not just ${esc(p.session.date)})</label><button class="ghost sm" onclick="importCard()">Import</button>
+      <span style="flex:1"></span><button class="ghost sm" onclick="run('suggest')" title="fill empty clips in shoot order; in-points still at 0 from the motion profile">Suggest clips & in-points</button></div>
     <div class="clips" style="margin-top:12px">${S.clips.map(c=>{const used=p.scenes.filter(s=>s.clip===c.file).map(s=>s.key); return `<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
       ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}?${c.duration}">`:''}
       <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
@@ -237,7 +242,7 @@ function sceneRow(s,i,tl){
   return `<div class="scene ${i===selScene?'on':''}" onclick="selScene=${i};render()">
     <div><div class="k">${esc(s.key)}<small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}</small></div>
       ${s.clip&&S.raw.includes(s.clip)?`<img class="th" src="/api/s/${SID}/thumb?clip=${encodeURIComponent(s.clip)}&t=${(+s.in||0).toFixed(1)}" title="${esc(s.clip)} @ ${s.in}s — click to scrub" onclick="event.stopPropagation();selScene=${i};openPlayer('${esc(s.clip)}',${+s.in||0})">`:'<div class="th nope">no clip</div>'}
-      <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button></div></div>
+      <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button><button class="ghost sm" onclick="event.stopPropagation();selScene=${i};run('preview',{key:'${esc(s.key)}'})" title="3 s of this scene with overlay + voice, ~30 s">▶ preview</button></div></div>
     <div>
       <div class="f">
         <label>key <select onchange="sc(${i}).key=this.value;save()">${stationKeys().concat(stationKeys().includes(s.key)?[]:[s.key]).map(k=>`<option ${k===s.key?'selected':''}>${k}</option>`).join('')}</select></label>
@@ -275,10 +280,17 @@ function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
 let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
+let PRESETS=[], MOUNTS=[];
+async function loadPresets(){try{PRESETS=(await api('/api/presets')).presets; MOUNTS=(await api('/api/mounts')).mounts}catch(e){}}
+async function applyPreset(){const n=$('presel').value; if(!n) return; await api(`/api/s/${SID}/preset/${encodeURIComponent(n)}`,{method:'POST'}); toast('preset applied'); refresh()}
+async function savePreset(){const n=prompt('Preset name (fx, audio, length of this session)','hyrox-default'); if(!n) return; await api('/api/presets',J('POST',{name:n,sid:SID})); await loadPresets(); render()}
+async function deletePreset(){const n=$('presel').value; if(!n||!confirm('Delete preset '+n+'?')) return; await api('/api/presets/'+encodeURIComponent(n),{method:'DELETE'}); await loadPresets(); render()}
+async function importCard(){let src=$('mount').value; if(!src) src=prompt('Folder to import from (SD card, phone, Downloads)','/media/'); if(!src) return; run('import',{src,all:$('impall').checked})}
 let PCLIP=null;
 function openPlayer(file,t){const c=S.clips.find(x=>x.file===file); if(!c||!c.proxy){alert('No proxy for this clip yet — run 1 · Clips'); return}
   PCLIP=file; const v=$('pv'); v.src=`/files/${SID}/build/${c.proxy}`; $('ptitle').textContent=file+(sc(selScene)?` → ${sc(selScene).key}`:''); $('pset').disabled=!sc(selScene);
   v.onloadedmetadata=()=>{v.currentTime=t||0}; v.ontimeupdate=()=>{$('ptime').textContent=v.currentTime.toFixed(2)+' s'}; $('pdlg').showModal(); v.focus();}
+function showPreview(key){const v=$('pv'); PCLIP=null; v.src=`/files/${SID}/build/preview/${key}.mp4?${Date.now()}`; $('ptitle').textContent='preview · '+key; $('pset').disabled=true; v.onloadedmetadata=()=>v.play(); $('pdlg').showModal()}
 function pstep(fr){const v=$('pv'); v.pause(); v.currentTime=Math.max(0,v.currentTime+fr/30)}
 function psetIn(){const s=sc(selScene); if(!s) return; s.clip=PCLIP; s.in=Math.round($('pv').currentTime*10)/10; save(true); $('pdlg').close()}
 document.addEventListener('keydown',e=>{if(!$('pdlg').open) return; if(e.key==='ArrowLeft'){pstep(e.shiftKey?-30:-1);e.preventDefault()} else if(e.key==='ArrowRight'){pstep(e.shiftKey?30:1);e.preventDefault()} else if(e.key===' '){const v=$('pv'); v.paused?v.play():v.pause(); e.preventDefault()} else if(e.key==='Enter'){psetIn()}});
@@ -315,7 +327,7 @@ async function run(step,extra){
   if(step==='data'&&S.data&&confirm('Re-fetch data (force)?')) body.force=true;
   if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
   try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';
-    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
+    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; const was=job; job=null; refresh().then(()=>{if(was.step==='preview'&&e.data==='0') showPreview(body.key); if(was.step==='import'&&e.data==='0') run('ingest')});});
     $('logstate').textContent='running'}
   catch(e){alert(e.message)}
 }
@@ -332,7 +344,7 @@ function showLog(t){$('log').classList.add('open'); if(t) $('logtitle').textCont
 function logLine(l){const pre=$('logpre'); pre.textContent+=l+'\n'; pre.scrollTop=pre.scrollHeight}
 function play(f){$('player').src=`/files/${SID}/out/${f}`; $('player').play()}
 
-loadMusic().then(loadSessions).then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) openSession(r.sessions[0].id)});
+Promise.all([loadMusic(),loadPresets()]).then(loadSessions).then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) openSession(r.sessions[0].id)});
 </script>
 </body>
 </html>

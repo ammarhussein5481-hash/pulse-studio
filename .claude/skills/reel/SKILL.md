@@ -22,6 +22,13 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - **strength** — Garmin has no exercise sets for Ammar (checked Aug–Oct 2026), so there is no order in the data: **the scene keys are the exercises** (`squat`, `bench_press`, `deadlift` …, from the clips + what he says). Each scene's HR (avg/max + trace) comes from its clip's shoot time (`creation_time` + `in`, matched to `_session.hr5`) — so use the clip actually shot during that exercise. Sets/kg he mentions go in `title: ["EXERCISE 02","BENCH PRESS","","<b>4×8</b> · 80 KG"]`.
 - **none** (`session.source: "none"`) — titles + captions only.
 
+## Shortcuts (use these before guessing)
+- `pulse-reel import <dir> /media/<user>/<card>` — copies that day's camera files into raw/ and voice files into vo/ (`--all` for every date), then run ingest.
+- `pulse-reel suggest <dir>` — first draft: fills empty clips in shoot order (vertical phone clips → intro/closing, tripod clips → stations) and in-points still at 0 from the motion profile. `--all` also overwrites in-points already set — only if Ammar asks.
+- `pulse-reel preview <dir> <key>` — 3 s of one scene with overlay + voice in ~30 s (`build/preview/<key>.mp4`). Use it to check a shot or an fx before a 12-minute build; Read a frame of it with ffmpeg if you need to look.
+- Ingest makes a 480p proxy per clip (`build/proxy_*.mp4`); in the web app Ammar scrubs it and sets the in-point himself — when he says "I set the sled in-point", re-read project.json rather than changing it.
+- `pulse-reel preset save <name> --dir <dir>` / `apply` — fx, audio levels, music track, length as a template (`~/.pulse-studio/presets/`). "Make it like last time" = apply his preset.
+
 ## Revisions (what Ammar usually asks)
 - "X shot starts from here" (screenshot of the player scrubber): read the scrubber fraction × clip duration → set that scene's `in`; or match the frame with a quick contact sheet around the guess. Rebuild with `--only <key>`.
 - "Use this video for X": set `clip`; `crop: "full"` if he wants the whole frame even when he's small.

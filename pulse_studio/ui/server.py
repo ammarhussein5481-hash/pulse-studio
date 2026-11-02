@@ -12,7 +12,7 @@ from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
-STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish"}
+STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest"}
 RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
@@ -285,6 +285,14 @@ async def run_step(sid: str, step: str, req: Request):
     if j.get("no_frames") and step == "build": cmd.append("--no-frames")
     if j.get("times") and step == "stills": cmd.append(j["times"])
     if j.get("to") and step == "publish": cmd += ["--to", j["to"]]
+    if step == "preview":
+        if not j.get("key"): raise HTTPException(400, "key required"); 
+        cmd += [j["key"], "--len", str(j.get("len", 3))]
+    if step == "import":
+        src = Path(j.get("src", "")).expanduser()
+        if not src.is_dir(): raise HTTPException(400, f"{src} is not a folder")
+        cmd.append(str(src)); cmd += ["--all"] if j.get("all") else []
+    if step == "suggest" and j.get("all"): cmd.append("--all")
     CURRENT = Job(cmd, d.parent); JOBS[CURRENT.id] = CURRENT
     return {"job": CURRENT.id}
 
@@ -376,6 +384,39 @@ def job_stop(jid: str):
     j = JOBS.get(jid)
     if j and j.running: j.proc.terminate()
     return {"ok": True}
+
+@app.get("/api/mounts")
+def mounts():
+    """Where an SD card or a phone shows up on Ubuntu."""
+    out = []
+    for pat in ("/media/*/*", "/run/media/*/*", "/mnt/*", str(Path.home() / "Downloads")):
+        for p in sorted(Path("/").glob(pat.lstrip("/")) if pat.startswith("/") else [Path(pat)]):
+            if p.is_dir(): out.append(str(p))
+    return {"mounts": out}
+
+PRESETS = lambda: (config.HOME / "presets")
+@app.get("/api/presets")
+def presets():
+    d = PRESETS(); d.mkdir(parents=True, exist_ok=True)
+    return {"presets": [f.stem for f in sorted(d.glob("*.json"))]}
+
+@app.post("/api/presets")
+async def preset_save(req: Request):
+    j = await req.json(); name = re.sub(r"[^\w-]+", "-", j.get("name", "")).strip("-")
+    if not name: raise HTTPException(400, "name")
+    d = _sid(j["sid"]); r = subprocess.run([sys.executable, "-m", "pulse_studio.cli", "preset", "save", name, "--dir", str(d)], capture_output=True, text=True)
+    if r.returncode: raise HTTPException(500, r.stdout + r.stderr)
+    return {"saved": name}
+
+@app.delete("/api/presets/{name}")
+def preset_delete(name: str):
+    (PRESETS() / f"{Path(name).name}.json").unlink(missing_ok=True); return {"ok": True}
+
+@app.post("/api/s/{sid}/preset/{name}")
+def preset_apply(sid: str, name: str):
+    d = _sid(sid); r = subprocess.run([sys.executable, "-m", "pulse_studio.cli", "preset", "apply", Path(name).name, "--dir", str(d)], capture_output=True, text=True)
+    if r.returncode: raise HTTPException(500, r.stdout + r.stderr)
+    return {"applied": name}
 
 @app.get("/api/s/{sid}/thumb")
 def thumb(sid: str, clip: str, t: float = 0.0):

@@ -57,6 +57,10 @@ pulse-reel timeline sessions/2026-11-08-hyrox   # timing + tempo check
 pulse-reel stills   sessions/2026-11-08-hyrox   # overlay QA stills
 pulse-reel build    sessions/2026-11-08-hyrox   # ~12 min → out/<name>-v1.mp4 + contact sheet
 pulse-reel audio    sessions/2026-11-08-hyrox   # remix only (after changing music/sfx levels)
+pulse-reel preview  sessions/2026-11-08-hyrox sled_push   # 3 s of one scene with overlay + voice, ~30 s
+pulse-reel import   sessions/2026-11-08-hyrox /media/$USER/SDCARD   # that day's files → raw/ and vo/
+pulse-reel suggest  sessions/2026-11-08-hyrox   # first draft: clips in shoot order, in-points from motion
+pulse-reel preset   save hyrox-default --dir sessions/2026-11-08-hyrox   # reuse fx/audio/length next time
 pulse-reel publish  sessions/2026-11-08-hyrox --to user@host:/var/www/share/   # or set PULSE_SHARE
 ```
 
