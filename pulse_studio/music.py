@@ -39,6 +39,24 @@ def library_dir():
     from .config import HOME
     d = HOME / "music"; d.mkdir(parents=True, exist_ok=True); return d
 
+def best_window(src, T: float) -> float:
+    """Start offset of the most energetic T-second window of a track (≈ the chorus / drop), nudged to a loud onset.
+    RMS per 0.5 s from a 22 kHz mono decode; the window is scored by mean energy with a small bonus for a rise at its start."""
+    import subprocess
+    from .config import ffmpeg
+    raw = subprocess.run([ffmpeg(), "-nostdin", "-v", "error", "-i", str(src), "-ac", "1", "-ar", "22050", "-f", "s16le", "-"], capture_output=True).stdout
+    x = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    hop = 22050 // 2; n = len(x) // hop
+    if n * 0.5 <= T + 1: return 0.0
+    rms = np.array([np.sqrt(np.mean(x[i * hop:(i + 1) * hop] ** 2)) for i in range(n)])
+    w = int(T / 0.5); best, bi = -1.0, 0
+    for i in range(0, n - w):
+        score = rms[i:i + w].mean() + 0.3 * max(0.0, rms[i:i + 4].mean() - rms[max(0, i - 4):i].mean() if i else 0.0)
+        if score > best: best, bi = score, i
+    # snap to the nearest onset (local energy jump) within ±2 s so the music starts on a hit, not mid-phrase
+    lo, hi = max(1, bi - 4), min(n - w, bi + 4); j = max(range(lo, hi + 1), key=lambda k: rms[k] - rms[k - 1], default=bi)
+    return round(j * 0.5, 1)
+
 def prepare(proj: dict, tl: dict, out):
     """build/music.wav for the mix: a file from the library (audio.music_file, trimmed from audio.music_in, faded at the end)
     or the generated track when music_file is empty/"generated"."""
@@ -51,7 +69,10 @@ def prepare(proj: dict, tl: dict, out):
     src = library_dir() / Path(f).name
     if not src.exists():
         raise SystemExit(f"music file {f} not in the library ({library_dir()}) — upload it in the web app or copy it there")
-    T = float(tl["budget"]); st = float(a.get("music_in", 0) or 0)
+    T = float(tl["budget"]); st = a.get("music_in", 0)
+    if st in ("auto", None, ""):
+        st = best_window(src, T); print(f"  music: auto start at {int(st // 60)}:{int(st % 60):02d} (most energetic {T:.0f} s of {src.name})")
+    st = float(st or 0)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(st), "-i", str(src), "-t", str(T), "-ac", "2", "-ar", "48000",
                     "-af", f"apad=whole_dur={T},afade=t=in:d=0.5,afade=t=out:st={T - 2.5:.2f}:d=2.5", str(out)], check=True)
     return out

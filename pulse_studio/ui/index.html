@@ -223,7 +223,7 @@ function render(){
   <section><h2>Audio</h2><div class="row">
     <label class="hint"><input type="checkbox" ${p.audio.music?'checked':''} onchange="p().audio.music=this.checked;save()"> music</label>
     <label class="hint">track <select onchange="p().audio.music_file=this.value;save()"><option value="generated" ${(p.audio.music_file||'generated')==='generated'?'selected':''}>generated (code)</option>${(MUSIC||[]).map(m=>`<option ${p.audio.music_file===m.file?'selected':''}>${esc(m.file)}</option>`).join('')}</select></label>
-    <label class="hint">start at <input type="number" step="1" value="${p.audio.music_in||0}" onchange="p().audio.music_in=+this.value;save()"> s</label>
+    <label class="hint">start at <input value="${p.audio.music_in===undefined||p.audio.music_in===null?'auto':p.audio.music_in}" style="width:60px" onchange="p().audio.music_in=this.value.trim()==='auto'||this.value.trim()===''?'auto':+this.value;save()" title="seconds into the track, or 'auto' = the most energetic part of the track (chorus/drop)"> s</label>
     ${p.audio.music_file&&p.audio.music_file!=='generated'?`<audio controls preload="none" src="/music/${encodeURIComponent(p.audio.music_file)}" style="height:28px"></audio>`:''}
     </div><div class="row" style="margin-top:8px">
     <label class="hint">music dB <input type="number" value="${p.audio.music_db}" onchange="p().audio.music_db=+this.value;save()"></label>
