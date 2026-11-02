@@ -311,7 +311,7 @@ function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
   if(selWord==null&&(v.from!=null||v.windows||v.file!==name)&&!confirm(`Change ${sc(selScene).key}'s voice-over window? (it is set already)`)) return;
   v.file=name; delete v.windows;
   if(selWord==null||v.from==null||s<v.from){v.from=s;delete v.to;selWord=s}else{v.to=e;selWord=null} save()}
-let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
+let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('NOT SAVED: '+e.message); alert('Not saved — '+e.message+'\n\nIf the Assistant is working on this session, wait for it to finish and redo the change.'); refresh()}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
 function copyScript(){const t=p().scenes.map((s,i)=>`${i+1}. ${s.script||''}`).join('\n'); navigator.clipboard.writeText(t).then(()=>toast('script copied'))}
