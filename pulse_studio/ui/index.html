@@ -81,6 +81,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)} .grp{font-size:14px;color:var(--mute
   <h1>Pulse<br>Studio<small>reel builder</small></h1>
   <div style="margin:18px 0 8px" class="row">
     <button class="sm" onclick="newSession()">+ New session</button>
+    <button class="ghost sm" onclick="openSkill()" title="what the Assistant follows (read-only)">Skill</button>
   </div>
   <div id="sessions"></div>
   <p class="hint" style="margin-top:20px" id="root"></p>
@@ -93,6 +94,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)} .grp{font-size:14px;color:var(--mute
     <span style="flex:1"></span><button class="sm" id="pset" onclick="psetIn()">set in-point here</button></div>
   <p class="hint">← → one frame · shift+← → one second · space play/pause · Enter = set in-point for the selected scene</p>
 </dialog>
+<dialog id="skilldlg" style="width:min(980px,96vw)"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Skill <span class="hint" id="skillpath"></span></h2><button class="ghost sm" onclick="$('skilldlg').close()">Close</button></div>
+  <pre id="skilltext" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:68vh;overflow:auto;margin:12px 0 0;font:13px/1.55 ui-monospace,monospace;color:var(--bone)"></pre></dialog>
 <dialog id="newdlg"><h2>New session</h2>
   <div id="pulselist"></div>
   <div class="row" style="margin-top:10px"><button class="ghost sm" onclick="loadPulse(true)">Refresh</button><span style="flex:1"></span><label class="hint">Length <input type="number" id="mbudget" value="60"> s</label></div>
@@ -109,6 +112,7 @@ const $=id=>document.getElementById(id);
 let S=null, SID=null, selScene=0, selWord=null, job=null, rec=null, recChunks=[], askDraft='';
 const api=async(url,opt={})=>{const r=await fetch(url,opt);if(!r.ok){const t=await r.text();throw new Error(t||r.statusText)}return r.json()};
 const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+async function openSkill(){try{const j=await api('/api/skill'); $('skillpath').textContent=j.path; $('skilltext').textContent=j.text; $('skilldlg').showModal(); $('skilltext').scrollTop=0}catch(e){alert(e.message)}}
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=t=>{t=Math.round(t);return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`};
 

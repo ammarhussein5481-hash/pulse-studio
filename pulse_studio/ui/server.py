@@ -81,6 +81,13 @@ def index():
     html = (HERE / "index.html").read_text(encoding="utf-8").replace("__VERSION__", _version())
     return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
+@app.get("/api/skill")
+def skill():
+    """The /reel skill the Assistant follows, read-only."""
+    f = HERE.parent.parent / ".claude" / "skills" / "reel" / "SKILL.md"
+    if not f.exists(): raise HTTPException(404, "skill file not found")
+    return {"path": ".claude/skills/reel/SKILL.md", "text": f.read_text(encoding="utf-8")}
+
 @app.get("/fonts/{path:path}")
 def fonts(path: str):
     p = (config.fonts_dir() / path).resolve()
