@@ -126,6 +126,11 @@ def _pace(sec, m):
     if not m: return None
     v = sec / m * 1000; return f"{int(v // 60)}:{int(round(v % 60)):02d}"
 
+def _utc(s):
+    """'2026-11-02T02:43:04.0' → epoch seconds (Garmin GMT strings)."""
+    if not s: return None
+    return time.mktime(time.strptime(str(s)[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+
 def _part(key, station, laps, a, b, hr, extra=None):
     m = sum(x["m"] for x in laps); sec = sum(x["s"] for x in laps); hrs = [(x["hr"], x["s"]) for x in laps if x["hr"]]
     d = {"station": station, "s": round(sec, 1), "m": round(m), "pace": _pace(sec, m), "elev": round(sum(x["elev"] for x in laps)),
@@ -154,8 +159,14 @@ def export_garmin(s):
     out, order, t, dist = {}, [], 0.0, 0.0
     structure = None
     if typ in ("run", "ride"):
-        L = [{"m": l.get("distance") or 0, "s": l.get("duration") or 0, "hr": l.get("averageHR"), "max": l.get("maxHR"), "cad": l.get("averageRunCadence"),
+        L = [{"m": l.get("distance") or 0, "s": l.get("duration") or 0, "el": l.get("elapsedDuration") or l.get("duration") or 0, "hr": l.get("averageHR"), "max": l.get("maxHR"), "cad": l.get("averageRunCadence"),
               "elev": l.get("elevationGain") or 0, "intensity": l.get("intensityType"), "start_utc": l.get("startTimeGMT")} for l in laps if (l.get("duration") or 0) > 5]
+        act0 = _utc(act.get("startTimeGMT"))
+        def clock(grp):
+            """Position on the activity clock (what the HR series is indexed by): from the lap start times when Garmin gives them."""
+            a = _utc(grp[0].get("start_utc")); 
+            if act0 is not None and a is not None: return a - act0, a - act0 + sum(x["el"] for x in grp)
+            return None
         structure = run_structure(L)
         if structure in ("intervals", "tempo"):
             K = [str(x.get("intensity") or "").upper() for x in L]; i = 0; rep = 0
@@ -163,26 +174,27 @@ def export_garmin(s):
             first = next(j for j, k in enumerate(K) if k in ("ACTIVE", "INTERVAL")); last = max(j for j, k in enumerate(K) if k in ("ACTIVE", "INTERVAL"))
             def add(key, station, grp, extra=None):
                 nonlocal t
-                sec = sum(x["s"] for x in grp); a, b = t, t + sec; t = b; k, d = _part(key, station, grp, a, b, hr, extra); out[k] = d; order.append(k)
+                sec = sum(x["s"] for x in grp); c = clock(grp); a, b = c if c else (t, t + sec); t = b
+                k, d = _part(key, station, grp, a, b, hr, extra); out[k] = d; order.append(k)
             if first > 0: add("warmup", "Warm-up", L[:first])
             j = first
             while j <= last:
                 if K[j] in ("ACTIVE", "INTERVAL"):
                     rep += 1; grp = [L[j]]; j += 1
                     rec = []
-                    while j <= last and K[j] not in ("ACTIVE", "INTERVAL"): rec.append(L[j]); j += 1
+                    while j < len(L) and K[j] in ("RECOVERY", "REST", "OTHER", ""): rec.append(L[j]); j += 1
                     rec_s = sum(x["s"] for x in rec); rec_hr = min((x["hr"] or 999 for x in rec), default=None)
                     add(f"rep{rep}", f"Rep {rep}", grp, {"rep": rep, "rec_s": round(rec_s, 1), "rec_m": round(sum(x["m"] for x in rec)), "rec_hr_min": None if rec_hr in (None, 999) else rec_hr})
                     t += rec_s   # the recovery time passes on the session clock
                 else: j += 1
             for k in order:
                 if k.startswith("rep"): out[k]["reps"] = rep
-            if last + 1 < len(L): add("cooldown", "Cool-down", L[last + 1:])
+            if j < len(L): add("cooldown", "Cool-down", L[j:])
             dist = sum(x["m"] for x in L)
         else:
             L = [x for x in L if x["m"] > 50]
             for i, grp in enumerate(_groups(L), 1):
-                m = sum(x["m"] for x in grp); sec = sum(x["s"] for x in grp); a, b = t, t + sec; t = b
+                m = sum(x["m"] for x in grp); sec = sum(x["s"] for x in grp); c = clock(grp); a, b = c if c else (t, t + sec); t = b
                 key, d = _part(f"part{i}", f"KM {_km(dist)}–{_km(dist + m)}", grp, a, b, hr); out[key] = d; order.append(key); dist += m
     total = act.get("duration") or t
     out["_session"] = {"date": s["date"], "type": typ, "name": act.get("activityName"), "total_s": total, "moving_s": act.get("movingDuration"),
