@@ -296,12 +296,20 @@ def music_list():
             out.append({"file": f.name, "duration": dur, "mb": round(f.stat().st_size / 1e6, 1)})
     return {"dir": str(d), "files": out}
 
+VIDEO_FOR_MUSIC = {".mp4", ".m4v", ".mov", ".webm", ".mkv"}
+
 @app.post("/api/music/upload")
 async def music_upload(files: list[UploadFile] = File(...)):
     names = []
     for f in files:
-        name = Path(f.filename or "track").name
-        if not re.fullmatch(r"[\w .()&-]+", name) or Path(name).suffix.lower() not in MUSIC_EXT: raise HTTPException(400, f"bad name/type {name}")
+        name = re.sub(r"[^\w .()&-]", "_", Path(f.filename or "track").name); ext = Path(name).suffix.lower()
+        if ext in VIDEO_FOR_MUSIC:   # a music video / downloaded mp4: keep only the audio
+            tmp = music.library_dir() / ("." + name); await _save_upload(f, tmp)
+            out = music.library_dir() / (Path(name).stem + ".m4a")
+            r = subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-i", str(tmp), "-vn", "-c:a", "aac", "-b:a", "192k", str(out)]); tmp.unlink(missing_ok=True)
+            if r.returncode: raise HTTPException(400, f"{name}: no audio track found")
+            names.append(out.name); continue
+        if ext not in MUSIC_EXT: raise HTTPException(400, f"{name}: use mp3 / m4a / wav / flac / ogg (or an mp4 with audio)")
         await _save_upload(f, music.library_dir() / name); names.append(name)
     return {"saved": names}
 
