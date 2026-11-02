@@ -49,6 +49,12 @@ A scene = a phase of the session (warmup / workout / cooldown for runs and rides
 - Effects (per scene, `fx` list): `zoomcut` (snap zoom-in on the cut, pairs with the whoosh), `storm` (the sub-line facts flash one by one before the title — "1000 M", "2:03 /500M", "34 SPM"), `glass` (frosted liquid-glass pane behind the title; breaks the no-panels rule, use sparingly), `chat` (caption as chat bubbles instead of karaoke). `inset: {"file":"assets/erg.png","label":"ERGDATA","at":1.2,"w":300,"pos":[740,980]}` = b-roll picture-in-picture (ErgData screen, watch face). `phone: {"file":"assets/pulse.png","at":0.8}` = phone mockup (the Pulse app) — on the closing it pushes the stats to the left. Closing `style: "checklist"` = stations tick off one by one with their times, then the totals. Ammar's defaults from the reference reels: storm on the erg stations, checklist closing with the phone.
 - Always `pulse-reel build` or `audio` after edits, read the new contact sheet, report the version number. Never overwrite an earlier version.
 
+## Choosing moments and effects
+When Ammar says "choose the moments and effects" (or asks for the best moment of each video, or for you to pick the effects), do both together:
+- **Moments:** look at frames from the footage itself, about one per second, not just the contact sheet. Prefer his face or the team clearly visible, good running form, steady framing, nice light. Avoid blur, whip pans, empty track, and the camera being placed or picked up. Each moment must last as long as its scene or shot, so nothing freezes, and don't reuse the same seconds in two scenes. Keep any in-point he says he set himself.
+- **Effects:** use them on 2 or 3 scenes at most, on the moments with the most energy or the most important numbers. Avoid `glass` unless a title is hard to read. Add an inset only when he has given you the picture.
+- **Approval:** show one table first (scene, clip, start time, effects, why) and change nothing in `project.json` until he approves. Then make a `pulse-reel preview` of each scene with an effect and wait for his OK before the full build.
+
 ## Web app
 `pulse-reel ui` (http://127.0.0.1:8787) edits the same `project.json`; if Ammar is using it, re-read project.json before changing anything and tell him to refresh the page after your edits.
 
