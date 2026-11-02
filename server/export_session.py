@@ -9,7 +9,7 @@ One session = one reel: HYROX (Pulse HYROX watch app), run, ride, strength (Garm
   python export_session.py --index                  -> only rewrite index.json (no Garmin login)
 Cron (every 10 min): */10 * * * * docker exec <garmin container> python /work/pulse-studio-server/export_session.py --sync
 
-HYROX: laps from hyrox_watch.json, 200 m splits from erg.json (ErgData). Run/ride: Garmin laps grouped into up to 8 parts.
+HYROX: laps from hyrox_watch.json, 200 m splits from erg.json (ErgData). Run/ride: the workout structure from Garmin's lap labels (warm-up, rep1..N with their recoveries, cool-down; tempo block; or distance parts for a steady run).
 Strength: Garmin has no reliable exercise sets, so only totals + HR every 5 s (the laptop matches each scene's clip shoot time to it).
 All: second-by-second HR from the Garmin activity details (unofficial API, same login garmin_pull.py uses), HR zones from the summary.
 """
@@ -122,6 +122,29 @@ def _groups(laps, n=PARTS):
         size = k + (1 if j < r else 0); out.append(laps[i:i + size]); i += size
     return out
 
+def _pace(sec, m):
+    if not m: return None
+    v = sec / m * 1000; return f"{int(v // 60)}:{int(round(v % 60)):02d}"
+
+def _part(key, station, laps, a, b, hr, extra=None):
+    m = sum(x["m"] for x in laps); sec = sum(x["s"] for x in laps); hrs = [(x["hr"], x["s"]) for x in laps if x["hr"]]
+    d = {"station": station, "s": round(sec, 1), "m": round(m), "pace": _pace(sec, m), "elev": round(sum(x["elev"] for x in laps)),
+         "hr": round(sum(h * w for h, w in hrs) / sum(w for _, w in hrs)) if hrs else None, "max": max((x["max"] or 0 for x in laps), default=None) or None,
+         "cad": round(sum((x["cad"] or 0) * x["s"] for x in laps) / sec) if sec and any(x["cad"] for x in laps) else None,
+         "t0": round(a, 1), "t1": round(b, 1), "start_utc": laps[0].get("start_utc"),
+         "laps": [[round(x["s"], 1), round(x["m"]), x["hr"]] for x in laps], "trace": trace(hr, a, b)}
+    if extra: d.update(extra)
+    return key, d
+
+def run_structure(L):
+    """Garmin labels every lap of a structured workout: WARMUP / ACTIVE / RECOVERY / COOLDOWN (REST, INTERVAL on some devices).
+    intervals: warm-up → rep1..repN (each ACTIVE lap, with the recovery that follows it) → cool-down.
+    tempo: one long ACTIVE block. steady: no labels (or all the same) → distance parts."""
+    kinds = [str(x.get("intensity") or "").upper() for x in L]
+    active = [i for i, k in enumerate(kinds) if k in ("ACTIVE", "INTERVAL")]
+    if not active: return "steady"
+    return "intervals" if len(active) >= 2 else "tempo"
+
 def export_garmin(s):
     act, aid, typ = s["raw"], s["id"], s["type"]
     g = garmin()
@@ -129,23 +152,45 @@ def export_garmin(s):
     hr = hr_series(aid)
     laps = g.get_activity_splits(int(aid)).get("lapDTOs", []) or []
     out, order, t, dist = {}, [], 0.0, 0.0
+    structure = None
     if typ in ("run", "ride"):
-        L = [{"m": l.get("distance") or 0, "s": l.get("duration") or 0, "hr": l.get("averageHR"), "max": l.get("maxHR"),
-              "elev": l.get("elevationGain") or 0} for l in laps if (l.get("distance") or 0) > 50]
-        for i, grp in enumerate(_groups(L), 1):
-            m = sum(x["m"] for x in grp); sec = sum(x["s"] for x in grp); a, b = t, t + sec; t = b
-            hrs = [(x["hr"], x["s"]) for x in grp if x["hr"]]
-            key = f"part{i}"; order.append(key)
-            out[key] = {"station": f"KM {_km(dist)}–{_km(dist + m)}", "s": round(sec, 1), "m": round(m), "elev": round(sum(x["elev"] for x in grp)),
-                        "hr": round(sum(h * w for h, w in hrs) / sum(w for _, w in hrs)) if hrs else None,
-                        "max": max((x["max"] or 0 for x in grp), default=None) or None,
-                        "laps": [[round(x["s"], 1), round(x["m"]), x["hr"]] for x in grp], "trace": trace(hr, a, b)}
-            dist += m
+        L = [{"m": l.get("distance") or 0, "s": l.get("duration") or 0, "hr": l.get("averageHR"), "max": l.get("maxHR"), "cad": l.get("averageRunCadence"),
+              "elev": l.get("elevationGain") or 0, "intensity": l.get("intensityType"), "start_utc": l.get("startTimeGMT")} for l in laps if (l.get("duration") or 0) > 5]
+        structure = run_structure(L)
+        if structure in ("intervals", "tempo"):
+            K = [str(x.get("intensity") or "").upper() for x in L]; i = 0; rep = 0
+            # warm-up = everything before the first ACTIVE lap
+            first = next(j for j, k in enumerate(K) if k in ("ACTIVE", "INTERVAL")); last = max(j for j, k in enumerate(K) if k in ("ACTIVE", "INTERVAL"))
+            def add(key, station, grp, extra=None):
+                nonlocal t
+                sec = sum(x["s"] for x in grp); a, b = t, t + sec; t = b; k, d = _part(key, station, grp, a, b, hr, extra); out[k] = d; order.append(k)
+            if first > 0: add("warmup", "Warm-up", L[:first])
+            j = first
+            while j <= last:
+                if K[j] in ("ACTIVE", "INTERVAL"):
+                    rep += 1; grp = [L[j]]; j += 1
+                    rec = []
+                    while j <= last and K[j] not in ("ACTIVE", "INTERVAL"): rec.append(L[j]); j += 1
+                    rec_s = sum(x["s"] for x in rec); rec_hr = min((x["hr"] or 999 for x in rec), default=None)
+                    add(f"rep{rep}", f"Rep {rep}", grp, {"rep": rep, "rec_s": round(rec_s, 1), "rec_m": round(sum(x["m"] for x in rec)), "rec_hr_min": None if rec_hr in (None, 999) else rec_hr})
+                    t += rec_s   # the recovery time passes on the session clock
+                else: j += 1
+            for k in order:
+                if k.startswith("rep"): out[k]["reps"] = rep
+            if last + 1 < len(L): add("cooldown", "Cool-down", L[last + 1:])
+            dist = sum(x["m"] for x in L)
+        else:
+            L = [x for x in L if x["m"] > 50]
+            for i, grp in enumerate(_groups(L), 1):
+                m = sum(x["m"] for x in grp); sec = sum(x["s"] for x in grp); a, b = t, t + sec; t = b
+                key, d = _part(f"part{i}", f"KM {_km(dist)}–{_km(dist + m)}", grp, a, b, hr); out[key] = d; order.append(key); dist += m
     total = act.get("duration") or t
     out["_session"] = {"date": s["date"], "type": typ, "name": act.get("activityName"), "total_s": total, "moving_s": act.get("movingDuration"),
                        "avg_hr": act.get("averageHR"), "max_hr": act.get("maxHR"), "kcal": round(sum(l.get("calories") or 0 for l in laps)) or None,
                        "distance_m": act.get("distance") or None, "elev": act.get("elevationGain"), "full_trace": trace(hr, 0, total, 120),
-                       "zones": zones(act), "start": s["start"], "start_utc": act.get("startTimeGMT"), "hr5": every(hr), "order": order, "id": aid}
+                       "zones": zones(act), "start": s["start"], "start_utc": act.get("startTimeGMT"), "hr5": every(hr), "order": order, "id": aid,
+                       "structure": structure, "reps": sum(1 for k in order if k.startswith("rep")) or None,
+                       "target": (act.get("activityName") or "").split("@")[-1].strip() if "@" in (act.get("activityName") or "") else None}
     return out
 
 def write(s, all_s):
