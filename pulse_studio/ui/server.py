@@ -70,9 +70,16 @@ def _state(d: Path) -> dict:
             "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", ""), "tg": bool(os.environ.get("PULSE_TG_TOKEN"))}}
 
 # ---------- routes ----------
+def _version() -> str:
+    try:
+        import subprocess as sp
+        return sp.run(["git", "-C", str(HERE.parents[1]), "log", "-1", "--format=%h %cd", "--date=format:%d %b %H:%M"], capture_output=True, text=True, timeout=5).stdout.strip() or "?"
+    except Exception: return "?"
+
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return (HERE / "index.html").read_text(encoding="utf-8")
+    html = (HERE / "index.html").read_text(encoding="utf-8").replace("__VERSION__", _version())
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 @app.get("/fonts/{path:path}")
 def fonts(path: str):
