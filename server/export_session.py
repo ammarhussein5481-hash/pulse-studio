@@ -129,7 +129,7 @@ def _pace(sec, m):
 def _utc(s):
     """'2026-11-02T02:43:04.0' → epoch seconds (Garmin GMT strings)."""
     if not s: return None
-    return time.mktime(time.strptime(str(s)[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+    return time.mktime(time.strptime(str(s)[:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S")) - time.timezone
 
 def _part(key, station, laps, a, b, hr, extra=None):
     m = sum(x["m"] for x in laps); sec = sum(x["s"] for x in laps); hrs = [(x["hr"], x["s"]) for x in laps if x["hr"]]
