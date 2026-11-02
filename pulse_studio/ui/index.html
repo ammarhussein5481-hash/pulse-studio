@@ -394,7 +394,7 @@ async function run(step,extra){
   if(step==='data'&&S.data&&confirm('Re-fetch data (force)?')) body.force=true;
   if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
   try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';
-    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; const was=job; job=null; refresh().then(()=>{if(was.step==='preview'&&e.data==='0') showPreview(body.key); if(was.step==='import'&&e.data==='0') run('ingest'); if(was.step==='build'&&e.data!=='0'&&$('logpre').textContent.includes('build refused')&&confirm('A quality gate failed (see the log). Build anyway?')) run('build',{force:true,...body});});
+    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; const was=job; job=null; refresh().then(()=>{if(was.step==='preview'&&e.data==='0') showPreview(body.key); if(was.step==='import'&&e.data==='0') run('ingest'); if(was.step==='build'&&e.data!=='0'&&$('logpre').textContent.includes('build refused')&&confirm('A quality gate failed (see the log). Build anyway?')) run('build',{force:true,...body})})});
     $('logstate').textContent='running'}
   catch(e){alert(e.message)}
 }
