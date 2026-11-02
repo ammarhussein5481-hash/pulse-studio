@@ -96,12 +96,21 @@ def build(dir: Path, proj: dict, tl: dict, only: set[str] | None = None) -> tupl
     dir = Path(dir); b = dir / "build"; raw = dir / "raw"
     byk = {s["key"]: s for s in proj["scenes"]}
     vlist, alist = [], []
+    import hashlib, json as _json
+    man = b / "cuts_manifest.json"; old = _json.loads(man.read_text()) if man.exists() else {}; new = {}; changed = 0
     for i, s in enumerate(tl["scenes"], 1):
         sc = byk[s["key"]]; d = round(s["end"] - s["start"], 3)
         tv, ta = b / f"t{i}.mp4", b / f"t{i}.m4a"
-        if only is None or s["key"] in only or not tv.exists():
-            cut_shots(b, raw, sc, s["key"], d, i, tv, ta)
+        fp = hashlib.sha1(_json.dumps({"d": d, "shots": shots_of(sc), "fx": sc.get("fx"), "amb": sc.get("amb_db"), "crop": sc.get("crop"),
+                                       "mtime": [int((raw / x["file"]).stat().st_mtime) for x in shots_of(sc) if (raw / x["file"]).exists()]}, sort_keys=True, default=str).encode()).hexdigest()[:12]
+        new[str(i)] = fp
+        if (only is not None and s["key"] in only) or old.get(str(i)) != fp or not tv.exists() or not ta.exists():
+            cut_shots(b, raw, sc, s["key"], d, i, tv, ta); changed += 1
         vlist.append(tv); alist.append(ta)
+    man.write_text(_json.dumps(new), encoding="utf-8")
+    print(f"  cuts: {changed} re-cut, {len(vlist) - changed} reused", flush=True)
+    if changed == 0 and (b / "base_v.mp4").exists() and (b / "base_a.m4a").exists() and old == new:
+        return b / "base_v.mp4", b / "base_a.m4a"
     (b / "vlist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in vlist))
     (b / "alist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in alist))
     base_v, base_a = b / "base_v.mp4", b / "base_a.m4a"

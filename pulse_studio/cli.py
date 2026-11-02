@@ -7,7 +7,7 @@
   pulse-reel stt <dir> [--force]                            transcribe vo files with word timestamps → build/stt_*.json
   pulse-reel timeline <dir>                                 scenes → timeline.json (prints timing and tempo)
   pulse-reel stills <dir> [t1,t2,...]                       overlay QA stills → build/stills/
-  pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4
+  pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4 (incremental: only changed scenes are re-cut / re-rendered; --only forces keys)
   pulse-reel audio <dir>                                    re-mix audio only (music/sfx/amb levels changed) → new out version
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
   pulse-reel label <dir> [--force]                          what each clip shows (vision pass over the contact sheets) → clips.json labels
@@ -102,7 +102,7 @@ def cmd_build(a):
     print("[base] cutting scenes …"); media.build(a.dir, proj, tl, only=only)
     _page(a, proj, tl)
     if not a.no_frames:
-        print("[overlay] rendering frames …"); overlay.frames(a.dir, tl["budget"])
+        print("[overlay] rendering frames …"); overlay.frames(a.dir, tl["budget"], tl=tl, proj=proj, data=datamod.fetch(a.dir, proj))
     print("[audio] vo / sfx / music …")
     mix.vo_track(a.dir, tl, b / "vo_full.wav")
     if proj["audio"].get("sfx", True): sfx.generate(tl, b / "sfx.wav", tl["budget"], proj=proj)

@@ -36,22 +36,62 @@ def stills(dir: Path, times: list[float]) -> list[Path]:
     subprocess.run([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "stills", str(out), ",".join(str(t) for t in times)], check=True)
     return sorted(out.glob("*.jpg"))
 
-def frames(dir: Path, total_s: float, workers: int | None = None) -> Path:
-    """The PNG sequence, rendered by several headless Chromes on frame ranges (the slowest step; scales with threads)."""
+def _h(obj) -> str:
+    import hashlib; return hashlib.sha1(json.dumps(obj, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:12]
+
+def _render_ranges(b: Path, out: Path, ranges: list[tuple[int, int]], workers: int) -> None:
+    """Render [a, z) frame ranges with up to `workers` Chromes; long ranges are split so every worker stays busy."""
+    jobs = []
+    for a, z in ranges:
+        step = max(60, -(-(z - a) // workers))
+        for x in range(a, z, step): jobs.append((x, min(z, x + step)))
+    jobs.sort(); procs = []
+    while jobs or procs:
+        while jobs and len(procs) < workers:
+            a, z = jobs.pop(0)
+            procs.append(subprocess.Popen([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "frames", str(out), str(a), str(z), str(FPS)]))
+        done = [p for p in procs if p.poll() is not None]
+        for p in done:
+            procs.remove(p)
+            if p.returncode: raise SystemExit(f"frame rendering failed (exit {p.returncode})")
+        if procs and not done: procs[0].wait()
+
+def frames(dir: Path, total_s: float, workers: int | None = None, tl: dict | None = None, proj: dict | None = None, data: dict | None = None) -> Path:
+    """The PNG sequence. INCREMENTAL: a manifest remembers a fingerprint per scene (timing, words, caption, fx, data…);
+    only scenes whose fingerprint changed are re-rendered (plus 4 frames of margin for the cut flash). Anything global
+    (data, identity, the overlay page itself, scene order, length) changed → full render."""
     import os
-    b = Path(dir) / "build"; out = b / "frames"
-    if out.exists(): shutil.rmtree(out)
+    b = Path(dir) / "build"; out = b / "frames"; man = b / "frames_manifest.json"
     n = int(round(total_s * FPS))
     workers = workers or int(os.environ.get("PULSE_RENDER_WORKERS", 0)) or max(1, min(3, (os.cpu_count() or 2) - 1))
-    if n < 300: workers = 1
-    step = -(-n // workers); procs = []
-    for w in range(workers):
-        a, z = w * step, min(n, (w + 1) * step)
-        if a >= z: break
-        procs.append(subprocess.Popen([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "frames", str(out), str(a), str(z), str(FPS)]))
-    rc = [p.wait() for p in procs]
-    if any(rc): raise SystemExit(f"frame rendering failed (worker exit codes {rc})")
+    full = tl is None or proj is None or not out.exists() or not man.exists() or os.environ.get("PULSE_FULL_RENDER") == "1"
+    opts = {s["key"]: {k: s.get(k) for k in ("fx", "style", "parts", "name", "cap_y", "inset", "phone", "caption_en", "title")} for s in (proj or {}).get("scenes", [])}
+    glob = _h({"data": data, "identity": (proj or {}).get("identity"), "captions": (proj or {}).get("captions"), "page": (HERE / "overlay.html").read_text(encoding="utf-8"),
+               "order": [s["key"] for s in (tl or {}).get("scenes", [])], "n": n, "tempo": (tl or {}).get("tempo")})
+    per = {s["key"]: {"h": _h({"s": s, "o": opts.get(s["key"])}), "f0": int(round(s["start"] * FPS)), "f1": int(round(s["end"] * FPS))} for s in (tl or {}).get("scenes", [])}
+    old = json.loads(man.read_text()) if man.exists() else {}
+    if not full and old.get("glob") != glob: full = True
+    if full:
+        if out.exists(): shutil.rmtree(out)
+        out.mkdir(parents=True); ranges = [(0, n)]
+    else:
+        ranges = []
+        for k, v in per.items():
+            o = old.get("scenes", {}).get(k)
+            if not o or o["h"] != v["h"] or o["f0"] != v["f0"] or o["f1"] != v["f1"]:
+                ranges.append((max(0, v["f0"] - 4), min(n, v["f1"] + 4)))
+        for i in range(n):   # a frame lost on disk is re-rendered too
+            if not (out / f"{i:05d}.png").exists() and not any(a <= i < z for a, z in ranges): ranges.append((i, i + 1))
+        for f in out.glob("*.png"):   # length shrank
+            if int(f.stem) >= n: f.unlink()
+    merged = []
+    for a, z in sorted(ranges):
+        if merged and a <= merged[-1][1]: merged[-1] = (merged[-1][0], max(merged[-1][1], z))
+        else: merged.append((a, z))
+    todo = sum(z - a for a, z in merged)
+    if todo: _render_ranges(b, out, merged, 1 if todo < 300 else workers)
     missing = [i for i in range(n) if not (out / f"{i:05d}.png").exists()]
     if missing: raise SystemExit(f"{len(missing)} frames missing (first {missing[0]})")
-    print(f"frames done {n} ({len(procs)} worker{'s' if len(procs) > 1 else ''})", flush=True)
+    man.write_text(json.dumps({"glob": glob, "scenes": per}), encoding="utf-8")
+    print(f"frames done {n}" + (f" — {todo} rendered ({'full' if full else str(len(merged)) + ' changed scene range(s)'}), {n - todo} reused" if True else ""), flush=True)
     return out
