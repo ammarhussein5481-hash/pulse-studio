@@ -1,5 +1,13 @@
 # Pulse Studio
 
+<div dir="rtl">
+
+## نبذة
+
+يحوّل Pulse Studio جلسة التمرين إلى ريل عمودي بمقاس 9:16، مدته 60 ثانية افتراضيًا. تضيف مقاطعك وتسجيلك الصوتي، فيجمعها مع بيانات الجلسة من Pulse (Garmin وErgData وWHOOP) في فيديو واحد، مع ترجمة عربية وأرقام ورسوم بيانية. يعمل على جهازك المحلي، ويمكن إدارته من واجهة ويب بسيطة.
+
+</div>
+
 Turns a training session into a 9:16 reel (60 s by default; `vo.budget_s` in project.json or `pulse-reel new --budget 90` for longer): your clips + your voice-over + the session's real numbers (Garmin HR second by second, laps, ErgData splits, steps) rendered as transparent overlays in the climbday identity. One workout = one reel: **HYROX**, **running**, **cycling** or **strength** (or any session without data: titles + captions). Runs entirely on an Ubuntu laptop; no GPU needed.
 
 ![frames from the first reel](docs/reel-frames.jpg)
