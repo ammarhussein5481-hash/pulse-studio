@@ -60,7 +60,7 @@ def _state(d: Path) -> dict:
     raw = sorted(f.name for f in (d / "raw").glob("*") if f.suffix.lower() in RAW_EXT)
     vo = sorted(f.name for f in (d / "vo").glob("*") if f.suffix.lower() in VO_EXT)
     stt = {f.stem[4:]: _jload(f) for f in b.glob("stt_*.json")}
-    stills = sorted(f.name for f in (b / "stills").glob("*.png")) if (b / "stills").exists() else []
+    stills = sorted(f.name for f in (b / "stills").glob("*.jpg")) + sorted(f.name for f in (b / "stills").glob("*.png")) if (b / "stills").exists() else []
     lines = {f.stem: round(config.probe(f)["duration"], 1) for f in (d / "vo" / "lines").glob("*.m4a")} if (d / "vo" / "lines").exists() else {}
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
