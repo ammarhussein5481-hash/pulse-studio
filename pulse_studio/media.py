@@ -2,7 +2,7 @@
 from __future__ import annotations
 import subprocess
 from pathlib import Path
-from .config import ffmpeg, probe, W, H, FPS
+from .config import ffmpeg, probe, W, H, FPS, venc, vaapi_tail, vaapi_dev
 
 GLASS = (90, 290, 900, 640)   # x, y, w, h of the liquid-glass pane (must match #glass in overlay.html)
 
@@ -36,17 +36,19 @@ def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta
     hw = hwaccel_args()
     # hw frames skip ffmpeg's autorotate: apply the display rotation by hand after download
     turn = {90: "transpose=cclock,", 180: "hflip,vflip,", 270: "transpose=clock,"}.get(info.get("rotation", 0), "")
-    def fc(v): return f"[0:v]{v}[v0]" + (tail or ";[v0]null[v]")
+    def fc(v):   # [0:v] → filters → [v0] → (glass) → [v1] → (hwupload for VAAPI) → [v]
+        chain = f"[0:v]{v}[v0]" + (tail.replace("[v]", "[v1]") if tail else ";[v0]null[v1]")
+        return chain + f";[v1]null{vaapi_tail()}[v]"
     vf_hw = ("hwdownload,format=nv12," + turn + vf) if hw else vf
-    cmd = [ffmpeg(), "-nostdin", "-y", "-v", "error", *hw, "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf_hw), "-map", "[v]",
-           "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)]
+    cmd = [ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), *hw, "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf_hw), "-map", "[v]",
+           *venc("cut"), str(tv)]
     r = subprocess.run(cmd)
     if r.returncode != 0:
         if not hw:
             raise SystemExit(f"ffmpeg failed on {sc['clip']}")
         # VAAPI refused this file (codec/profile) → plain software decode
-        subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf), "-map", "[v]",
-                        "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)], check=True)
+        subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf), "-map", "[v]",
+                        *venc("cut"), str(tv)], check=True)
     amp = float(sc.get("amb_db", -9))
     r = subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-vn", "-ac", "2", "-ar", "48000",
                         "-af", f"apad=whole_dur={d},volume={amp}dB", "-c:a", "aac", "-b:a", "160k", str(ta)])
@@ -64,8 +66,8 @@ def cut_photo(src: Path, sc: dict, d: float, tv: Path, ta: Path) -> None:
     """A still as a video segment with a slow push-in (Ken Burns) + silent track."""
     vf = (f"scale={W * 1.12:.0f}:{H * 1.12:.0f}:force_original_aspect_ratio=increase,crop={W * 1.12:.0f}:{H * 1.12:.0f},"
           f"zoompan=z='1+0.0015*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1")
-    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-loop", "1", "-i", str(src), "-t", str(d), "-vf", vf,
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", str(tv)], check=True)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-loop", "1", "-i", str(src), "-t", str(d), "-vf", vf + vaapi_tail(),
+                    *venc("cut"), str(tv)], check=True)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
 
 def cut_shots(b: Path, raw: Path, sc: dict, key: str, d: float, i, tv: Path, ta: Path) -> None:
@@ -103,7 +105,7 @@ def build(dir: Path, proj: dict, tl: dict, only: set[str] | None = None) -> tupl
     (b / "vlist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in vlist))
     (b / "alist.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in alist))
     base_v, base_a = b / "base_v.mp4", b / "base_a.m4a"
-    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(b / "vlist.txt"), "-vf",
-                    "noise=alls=7:allf=t,vignette=PI/5,format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", str(FPS), str(base_v)], check=True)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-f", "concat", "-safe", "0", "-i", str(b / "vlist.txt"), "-vf",
+                    "noise=alls=7:allf=t,vignette=PI/5,format=yuv420p" + vaapi_tail(), *venc("mid"), "-r", str(FPS), str(base_v)], check=True)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(b / "alist.txt"), "-c:a", "aac", "-b:a", "160k", str(base_a)], check=True)
     return base_v, base_a

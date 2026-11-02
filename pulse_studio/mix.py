@@ -2,7 +2,7 @@
 from __future__ import annotations
 import subprocess, json
 from pathlib import Path
-from .config import ffmpeg, ffprobe, FPS, BITRATE
+from .config import venc, vaapi_tail, vaapi_dev, ffmpeg, ffprobe, FPS, BITRATE
 
 def vo_track(dir: Path, tl: dict, out: Path) -> Path | None:
     """Concatenates the per-scene VO segments at their timeline positions (atempo applied)."""
@@ -34,10 +34,9 @@ def composite(dir: Path, proj: dict, tl: dict, out: Path, frames: Path | None = 
         inputs += ["-i", str(fx)]; af += f"[{idx}:a]volume={a.get('sfx_db', -7)}dB[fx];"; mix.append("[fx]"); idx += 1
     if have_vo: mix.append("[vo2]")
     af += "".join(mix) + f"amix=inputs={len(mix)}:duration=longest:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=11[a]"
-    vf = "[0:v]tpad=stop_mode=clone:stop_duration=1.5[bv];[bv][1:v]overlay=0:0:format=auto[v]"
-    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *inputs, "-filter_complex", vf + ";" + af, "-map", "[v]", "-map", "[a]",
-                    "-c:v", "libx264", "-profile:v", "main", "-bf", "0", "-preset", "medium", "-b:v", BITRATE, "-maxrate", "5500k", "-bufsize", "9000k",
-                    "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-t", str(T), str(out)], check=True)
+    vf = "[0:v]tpad=stop_mode=clone:stop_duration=1.5[bv];[bv][1:v]overlay=0:0:format=auto" + (",format=yuv420p" + vaapi_tail() if vaapi_tail() else ",format=yuv420p") + "[v]"
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), *inputs, "-filter_complex", vf + ";" + af, "-map", "[v]", "-map", "[a]",
+                    *venc("final", BITRATE), "-r", str(FPS), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-t", str(T), str(out)], check=True)
     return out
 
 def verify(path: Path) -> dict:

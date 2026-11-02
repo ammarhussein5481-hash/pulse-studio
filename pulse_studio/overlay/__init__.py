@@ -36,9 +36,22 @@ def stills(dir: Path, times: list[float]) -> list[Path]:
     subprocess.run([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "stills", str(out), ",".join(str(t) for t in times)], check=True)
     return sorted(out.glob("*.jpg"))
 
-def frames(dir: Path, total_s: float) -> Path:
+def frames(dir: Path, total_s: float, workers: int | None = None) -> Path:
+    """The PNG sequence, rendered by several headless Chromes on frame ranges (the slowest step; scales with threads)."""
+    import os
     b = Path(dir) / "build"; out = b / "frames"
     if out.exists(): shutil.rmtree(out)
     n = int(round(total_s * FPS))
-    subprocess.run([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "frames", str(out), "0", str(n), str(FPS)], check=True)
+    workers = workers or int(os.environ.get("PULSE_RENDER_WORKERS", 0)) or max(1, min(3, (os.cpu_count() or 2) - 1))
+    if n < 300: workers = 1
+    step = -(-n // workers); procs = []
+    for w in range(workers):
+        a, z = w * step, min(n, (w + 1) * step)
+        if a >= z: break
+        procs.append(subprocess.Popen([node(), str(HERE / "render.mjs"), chrome(), str(b / "overlay.html"), "frames", str(out), str(a), str(z), str(FPS)]))
+    rc = [p.wait() for p in procs]
+    if any(rc): raise SystemExit(f"frame rendering failed (worker exit codes {rc})")
+    missing = [i for i in range(n) if not (out / f"{i:05d}.png").exists()]
+    if missing: raise SystemExit(f"{len(missing)} frames missing (first {missing[0]})")
+    print(f"frames done {n} ({len(procs)} worker{'s' if len(procs) > 1 else ''})", flush=True)
     return out

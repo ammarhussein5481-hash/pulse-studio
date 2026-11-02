@@ -12,7 +12,7 @@ from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
-STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match", "send", "label"}
+STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match", "send", "label", "check"}
 RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv", ".jpg", ".jpeg", ".png", ".heic", ".webp"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
@@ -47,7 +47,8 @@ def _latest(outdir: Path, name: str) -> list[dict]:
     vs = []
     for p in sorted(outdir.glob(f"{name}-v*.mp4"), key=lambda p: p.stat().st_mtime):
         v = p.stem.rsplit("-v", 1)[1]
-        vs.append({"v": int(v) if v.isdigit() else v, "file": p.name, "mb": round(p.stat().st_size / 1e6, 1),
+        chk = _jload(p.with_suffix(".check.json"))
+        vs.append({"v": int(v) if v.isdigit() else v, "file": p.name, "mb": round(p.stat().st_size / 1e6, 1), "check": chk,
                    "sheet": p.with_suffix(".jpg").name if p.with_suffix(".jpg").exists() else None, "mtime": p.stat().st_mtime})
     return vs
 
@@ -65,7 +66,7 @@ def _state(d: Path) -> dict:
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "accents": config.ACCENTS, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
-            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines,
+            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "lines": lines, "check": _jload(b / "check.json"),
             "ig": music.ig_suggestions(proj["session"].get("type", "hyrox"), (float(proj["vo"].get("budget_s", 60)) / max(1, len(proj["scenes"]))) if proj["scenes"] else None), "frames": (b / "frames").exists(),
             "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", ""), "tg": bool(os.environ.get("PULSE_TG_TOKEN"))}}
 
@@ -368,6 +369,8 @@ async def run_step(sid: str, step: str, req: Request):
         if not src.is_dir(): raise HTTPException(400, f"{src} is not a folder")
         cmd.append(str(src)); cmd += ["--all"] if j.get("all") else []
     if step == "suggest" and j.get("all"): cmd.append("--all")
+    if step == "check" and j.get("what"): cmd.append(j["what"])
+    if step == "build" and j.get("force"): cmd.append("--force")
     CURRENT = Job(cmd, d.parent); JOBS[CURRENT.id] = CURRENT; CURRENT.sid = sid; CURRENT.step = step
     return {"job": CURRENT.id}
 

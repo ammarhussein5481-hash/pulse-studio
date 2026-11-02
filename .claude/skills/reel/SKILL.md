@@ -63,6 +63,9 @@ When Ammar says "choose the moments and effects" (or asks for the best moment of
 ## Recording (web app)
 Ammar records line by line in the script table (● Rec / ■ Stop per line); takes live in `vo/lines/<key>.m4a` and the app rebuilds `vo/main.m4a` in scene order with 0.8 s gaps after every take, so `stt` + `match` work unchanged. If he says a line is wrong, he re-records that line only — never ask him to redo the whole file.
 
+## Quality gates (`pulse-reel check <dir> [pre|stills|post]`)
+13 named checks; build runs the pre gates first and REFUSES on ✗ (numbers in the script that are not in the data, missing media, broken voice windows) — fix, don't `--force`, unless Ammar says so. After the build it reports stills (safe zones, caption lines, contrast) and post gates (container, duration/size, loudness, black/frozen frames, cut rhythm) and writes `out/<name>-vN.check.json`. Report the verdict ("11/13, ! caption bright on cooldown") with the version. Gate 1 parses the Sudanese numbers in each line (أربع دقايق وسبع ثواني → 4, 7) against that scene's data parts.
+
 ## Delivery
 `pulse-reel send <dir>` sends the latest version to his phone through the Pulse Telegram bot with the post copy (Arabic intro line + closing + English + hashtags; also written to `out/<name>-vN.post.txt`). Needs `PULSE_TG_TOKEN` / `PULSE_TG_CHAT`.
 

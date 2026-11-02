@@ -58,6 +58,39 @@ def chrome() -> str:
         return hits[-1]
     raise SystemExit("chrome-headless-shell not found — run ./setup.sh")
 
+_VAAPI_ENC = None
+def vaapi_encoder() -> bool:
+    """True when ffmpeg has h264_vaapi and a render node exists (Intel/AMD iGPU) and PULSE_VAAPI_ENCODE != 0. Checked once."""
+    global _VAAPI_ENC
+    if _VAAPI_ENC is None:
+        ok = os.path.exists("/dev/dri/renderD128") and os.environ.get("PULSE_VAAPI_ENCODE", "1") != "0"
+        if ok:
+            try: ok = "h264_vaapi" in subprocess.run([ffmpeg(), "-hide_banner", "-encoders"], capture_output=True, text=True, timeout=20).stdout
+            except Exception: ok = False
+        if ok:   # a 1-frame smoke encode: the driver may be present but refuse (e.g. no permission on the render node)
+            r = subprocess.run([ffmpeg(), "-nostdin", "-v", "error", "-vaapi_device", "/dev/dri/renderD128", "-f", "lavfi", "-i", "color=c=black:s=256x256:r=30", "-t", "0.1",
+                                "-vf", "format=nv12,hwupload", "-c:v", "h264_vaapi", "-f", "null", "-"], capture_output=True, text=True)
+            ok = r.returncode == 0
+        _VAAPI_ENC = bool(ok)
+    return _VAAPI_ENC
+
+def venc(quality: str = "mid", bitrate: str | None = None) -> list[str]:
+    """Video encoder args: VAAPI on the iGPU when available, else libx264. quality: 'cut' (intermediate), 'mid' (base), 'final'."""
+    if vaapi_encoder():
+        qp = {"cut": "18", "mid": "20", "final": None}[quality]
+        args = ["-c:v", "h264_vaapi", "-profile:v", "main", "-bf", "0"]
+        return args + (["-b:v", bitrate, "-maxrate", bitrate, "-rc_mode", "VBR"] if bitrate else ["-rc_mode", "CQP", "-qp", qp])
+    preset = {"cut": "fast", "mid": "medium", "final": "medium"}[quality]
+    args = ["-c:v", "libx264", "-preset", preset, "-pix_fmt", "yuv420p"]
+    return args + (["-profile:v", "main", "-bf", "0", "-b:v", bitrate, "-maxrate", "5500k", "-bufsize", "9000k"] if bitrate else ["-crf", {"cut": "18", "mid": "20"}[quality]])
+
+def vaapi_tail() -> str:
+    """Filter tail that hands frames to the VAAPI encoder (software filters before it)."""
+    return ",format=nv12,hwupload" if vaapi_encoder() else ""
+
+def vaapi_dev() -> list[str]:
+    return ["-vaapi_device", "/dev/dri/renderD128"] if vaapi_encoder() else []
+
 def fonts_dir() -> Path:
     """Fonts come from @fontsource npm packages installed by setup.sh into ~/.pulse-studio/node_modules."""
     return HOME / "node_modules" / "@fontsource"

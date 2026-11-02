@@ -14,6 +14,7 @@
   pulse-reel script <dir> [--force]                         Arabic voice-over lines per scene with the real numbers (+ English captions) → record them
   pulse-reel match <dir>                                    align script ↔ recording: voice windows per scene + what was heard, numbers checked
   pulse-reel send <dir> [--version N]                       send the reel + post copy to your phone (Pulse Telegram bot; PULSE_TG_TOKEN / PULSE_TG_CHAT)
+  pulse-reel check <dir> [pre|stills|post]                  quality gates: numbers vs data, media, voice windows, safe zones, loudness, black frames…
   pulse-reel preview <dir> <key> [--len 3]                 3 s of one scene with overlay + voice → build/preview/<key>.mp4
   pulse-reel import <dir> <sdcard-folder> [--date|--all]    copy that day's videos → raw/, audio → vo/
   pulse-reel suggest <dir> [--all]                          first draft: clips in shoot order, in-points from the motion profile
@@ -23,7 +24,7 @@
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
 from pathlib import Path
-from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg, script as scriptmod, align as alignmod, label as labelmod
+from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg, script as scriptmod, align as alignmod, label as labelmod, check as checkmod
 from .config import FPS, HOME, probe, node, chrome, ffmpeg
 
 def _latest_version(outdir: Path, name: str) -> int:
@@ -74,8 +75,29 @@ def cmd_stills(a):
     times = [float(x) for x in a.times.split(",")] if a.times else [round((s["start"] + s["end"]) / 2, 1) for s in tl["scenes"]]
     for p in overlay.stills(a.dir, times): print(p)
 
+def cmd_check(a):
+    """Quality gates: pre (script/media/voice), stills (safe zones/contrast), post (the latest mp4)."""
+    which = a.what or "all"; res = []
+    if which in ("all", "pre"): print("[pre]"); r = checkmod.pre(a.dir); print(checkmod.describe(r)); res += r
+    if which in ("all", "stills"):
+        try: _timeline(a); proj = project.load(a.dir); tl = json.loads((Path(a.dir) / "build" / "timeline.json").read_text()); _page(a, proj, tl)
+        except SystemExit as e: print("[stills] skipped:", e)
+        else: print("[stills]"); r = checkmod.stills(a.dir); print(checkmod.describe(r)); res += r
+    if which in ("all", "post"):
+        proj = project.load(a.dir); outdir = Path(a.dir) / "out"; v = _latest_version(outdir, proj["name"])
+        if v:
+            out = outdir / f"{proj['name']}-v{v}.mp4"; print(f"[post] {out.name}"); r = checkmod.post(a.dir, out); print(checkmod.describe(r)); res += r
+            (outdir / f"{proj['name']}-v{v}.check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+        else: print("[post] nothing built yet")
+    (Path(a.dir) / "build" / "check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    f = checkmod.failed(res); print(f"\n{len([r for r in res if r['status'] == 'pass'])}/{len(res)} passed" + (f" — FAILED: {', '.join(str(r['id']) for r in f)}" if f else ""))
+    if f and a.strict: raise SystemExit(1)
+
 def cmd_build(a):
     proj, tl = _timeline(a); print(tlmod.describe(tl)); b = Path(a.dir) / "build"; outdir = Path(a.dir) / "out"; outdir.mkdir(exist_ok=True)
+    pre = checkmod.pre(a.dir); print("[check]"); print(checkmod.describe(pre))
+    if checkmod.failed(pre) and not a.force:
+        raise SystemExit("build refused: fix the ✗ gates above (or --force to build anyway)")
     only = set(a.only.split(",")) if a.only else None
     print("[base] cutting scenes …"); media.build(a.dir, proj, tl, only=only)
     _page(a, proj, tl)
@@ -89,6 +111,9 @@ def cmd_build(a):
     print(f"[mix] → {out.name}"); mix.composite(a.dir, proj, tl, out)
     info = mix.verify(out); mix.contact_sheet(out, outdir / f"{proj['name']}-v{v}.jpg")
     print(f"done: {out}  {info['duration']:.1f}s {info['mb']} MB {info['size']}  (sheet: {out.with_suffix('.jpg').name})")
+    print("[check]"); res = pre + checkmod.stills(a.dir) + checkmod.post(a.dir, out); print(checkmod.describe(res))
+    (outdir / f"{proj['name']}-v{v}.check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    f = checkmod.failed(res); print(f"{len([r for r in res if r['status'] == 'pass'])}/{len(res)} gates passed" + (f" — FAILED: {', '.join(str(r['id']) + ' ' + r['name'] for r in f)}" if f else ""))
 
 def cmd_audio(a):
     proj, tl = _timeline(a); b = Path(a.dir) / "build"; outdir = Path(a.dir) / "out"
@@ -248,7 +273,8 @@ def main(argv=None):
     p = sp.add_parser("stt"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_stt)
     p = sp.add_parser("timeline"); p.add_argument("dir"); p.set_defaults(f=cmd_timeline)
     p = sp.add_parser("stills"); p.add_argument("dir"); p.add_argument("times", nargs="?"); p.set_defaults(f=cmd_stills)
-    p = sp.add_parser("build"); p.add_argument("dir"); p.add_argument("--only"); p.add_argument("--no-frames", action="store_true"); p.set_defaults(f=cmd_build)
+    p = sp.add_parser("build"); p.add_argument("dir"); p.add_argument("--only"); p.add_argument("--no-frames", action="store_true"); p.add_argument("--force", action="store_true", help="build even if a pre-build gate fails"); p.set_defaults(f=cmd_build)
+    p = sp.add_parser("check"); p.add_argument("dir"); p.add_argument("what", nargs="?", choices=["pre", "stills", "post", "all"]); p.add_argument("--strict", action="store_true"); p.set_defaults(f=cmd_check)
     p = sp.add_parser("audio"); p.add_argument("dir"); p.set_defaults(f=cmd_audio)
     p = sp.add_parser("publish"); p.add_argument("dir"); p.add_argument("--to"); p.set_defaults(f=cmd_publish)
     p = sp.add_parser("label"); p.add_argument("dir"); p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_label)

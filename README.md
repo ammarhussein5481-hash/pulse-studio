@@ -67,7 +67,8 @@ pulse-reel match  sessions/2026-11-08-hyrox     # script ↔ recording: voice wi
 #  → edit project.json: one scene per station (clip, in-point, VO word window, corrected caption)
 pulse-reel timeline sessions/2026-11-08-hyrox   # timing + tempo check
 pulse-reel stills   sessions/2026-11-08-hyrox   # overlay QA stills
-pulse-reel build    sessions/2026-11-08-hyrox   # ~12 min → out/<name>-v1.mp4 + contact sheet
+pulse-reel check    sessions/2026-11-08-hyrox   # 13 quality gates (numbers vs data, media, voice, safe zones, loudness, black frames…)
+pulse-reel build    sessions/2026-11-08-hyrox   # ~12 min → out/<name>-v1.mp4 + contact sheet; refuses on a failed pre-build gate
 pulse-reel audio    sessions/2026-11-08-hyrox   # remix only (after changing music/sfx levels)
 pulse-reel preview  sessions/2026-11-08-hyrox sled_push   # 3 s of one scene with overlay + voice, ~30 s
 pulse-reel import   sessions/2026-11-08-hyrox /media/$USER/SDCARD   # that day's files → raw/ and vo/
@@ -109,6 +110,8 @@ Effects per scene: `"fx": ["zoomcut","storm","glass","chat"]` (snap zoom on the 
 `crop`: `auto` (centre 9:16 from a landscape source), `full` (vertical source as is), or `w:h:x:y` for a punch-in. `vo.windows: [[a,b],[c,d]]` skips filler words. `title` overrides the on-screen kicker/name/number/sub-line. `audio.music_db`, `sfx_db`, `amb_db` set the mix; `audio.music_file` picks a track from your music library (`~/.pulse-studio/music/`, managed in the web app — add / replace / delete) or `generated` for the code-made one, `audio.music_in` the start offset.
 
 ## Speed on an i5-7300U (4 threads, no GPU)
+Overlay frames render on up to 3 headless Chromes in parallel (`PULSE_RENDER_WORKERS`); cuts and the final encode use the Intel iGPU (VAAPI `h264_vaapi`) when the driver works, else libx264 (`PULSE_VAAPI_ENCODE=0` to force software). Plug in and `powerprofilesctl set performance` before a build.
+
 Whisper large-v3-turbo on a 90 s voice-over (first run downloads the 1.6 GB model) ≈ 3 min · base cut (4K, VAAPI) ≈ 2 min · 1800 overlay frames ≈ 5 min · final encode ≈ 3 min.
 
 ## Who this is for

@@ -154,8 +154,8 @@ function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
 
 function render(){
   const p=S.project, tl=S.timeline, d=S.data;
-  const done={ingest:S.clips.length>0,data:!!d,script:p.scenes.some(s=>s.script),match:!!S.match,stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
-  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['script','3 · Script'],['stt','4 · Transcribe'],['match','4b · Match'],['timeline','5 · Timeline'],['stills','6 · Stills'],['build','7 · Build'],['audio','Remix audio'],['publish','Publish']];
+  const done={ingest:S.clips.length>0,data:!!d,script:p.scenes.some(s=>s.script),match:!!S.match,check:!!(S.check&&S.check.length),stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
+  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['script','3 · Script'],['stt','4 · Transcribe'],['match','4b · Match'],['timeline','5 · Timeline'],['stills','6 · Stills'],['check','Check'],['build','7 · Build'],['audio','Remix audio'],['publish','Publish']];
   const warn=tl&&tl.tempo>=1.12?`<span class="warn">tempo ×${tl.tempo} — drop a phrase or raise the budget</span>`:'';
   $('main').innerHTML=`
   <div class="top"><h1>${esc(p.name)}</h1><div class="meta">${esc(p.session.date)} · ${esc(p.session.type)} · ${p.vo.budget_s}s · ${esc(p.identity)}</div>
@@ -170,6 +170,7 @@ function render(){
     <button class="ghost sm" onclick="delSession()" ${job?'disabled':''}>Delete session</button>
   </div>
   <div class="steps">${steps.map(([k,l])=>`<span class="step ${job&&job.step===k?'busy':done[k]?'done':'todo'}" onclick="run('${k}')">${l}</span>`).join('')}</div>
+  ${S.check&&S.check.length?`<div class="row" style="gap:6px;margin:-10px 0 16px">${S.check.map(r=>`<span class="pill ${r.status==='pass'?'':r.status==='fail'?'warn':''}" style="${r.status==='fail'?'background:#5a1a0a;color:#ffb199':r.status==='warn'?'background:#4a3a0a;color:var(--warn)':'background:#123a1f;color:var(--ok)'}" title="${esc(r.detail||'')}">${r.status==='pass'?'✓':r.status==='fail'?'✗':'!'} ${r.id} ${esc(r.name)}</span>`).join('')}</div>`:''}
   ${tl?`<p class="hint">speech ${tl.speech}s → tempo ×${tl.tempo} · ${tl.scenes.length} scenes · ${tl.budget}s ${warn}</p>`:''}
 
   <section class="claude"><h2>Assistant <span class="pill ${job&&job.step==='claude'?'or':''}">${job&&job.step==='claude'?'working':'/reel'}</span>${job&&job.step==='claude'?' <button class="ghost sm" onclick="stopJob()">Stop</button>':''}</h2>
@@ -253,7 +254,7 @@ function render(){
   </section>
 
   <section><h2>Builds <span class="pill">${S.outs.length}</span></h2>
-    ${S.outs.length?`<div class="outs"><div>${S.outs.slice().reverse().map(o=>`<div class="row" style="margin-bottom:6px"><button class="ghost sm" onclick="play('${o.file}')">v${o.v}</button><span class="hint">${o.mb} MB · ${new Date(o.mtime*1000).toLocaleTimeString()}</span><a class="hint" href="/files/${SID}/out/${o.file}" download>download</a></div>`).join('')}
+    ${S.outs.length?`<div class="outs"><div>${S.outs.slice().reverse().map(o=>`<div class="row" style="margin-bottom:6px"><button class="ghost sm" onclick="play('${o.file}')">v${o.v}</button><span class="hint">${o.mb} MB · ${new Date(o.mtime*1000).toLocaleTimeString()}${o.check?` · <b>${o.check.filter(r=>r.status==='pass').length}/${o.check.length} gates</b>${o.check.some(r=>r.status==='fail')?' <span class="warn">✗ '+esc(o.check.filter(r=>r.status==='fail').map(r=>r.name).join('; '))+'</span>':''}`:''}</span><a class="hint" href="/files/${SID}/out/${o.file}" download>download</a></div>`).join('')}
       <div class="row" style="margin-top:12px"><input id="pubto" placeholder="user@host:/path/ (or PULSE_SHARE)" value="${esc(S.env.share)}" style="flex:1"><button class="sm" onclick="run('publish',{to:$('pubto').value})">Publish latest</button>
       <button class="sm" onclick="run('send')" ${S.env.tg?'':'disabled title="set PULSE_TG_TOKEN and PULSE_TG_CHAT, then restart pulse-reel ui"'}>Send to phone</button></div>
       ${S.env.tg?'':'<p class="hint">Send to phone needs <code>PULSE_TG_TOKEN</code> / <code>PULSE_TG_CHAT</code> in the environment (the Pulse Telegram bot).</p>'}</div>
@@ -392,7 +393,7 @@ async function run(step,extra){
   if(step==='data'&&S.data&&confirm('Re-fetch data (force)?')) body.force=true;
   if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
   try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';
-    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; const was=job; job=null; refresh().then(()=>{if(was.step==='preview'&&e.data==='0') showPreview(body.key); if(was.step==='import'&&e.data==='0') run('ingest')});});
+    const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data)); es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; const was=job; job=null; refresh().then(()=>{if(was.step==='preview'&&e.data==='0') showPreview(body.key); if(was.step==='import'&&e.data==='0') run('ingest'); if(was.step==='build'&&e.data!=='0'&&$('logpre').textContent.includes('build refused')&&confirm('A quality gate failed (see the log). Build anyway?')) run('build',{force:true,...body});});
     $('logstate').textContent='running'}
   catch(e){alert(e.message)}
 }
