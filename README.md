@@ -53,6 +53,7 @@ pulse-reel ingest sessions/2026-11-08-hyrox     # clips by shoot time + contact 
 pulse-reel data   sessions/2026-11-08-hyrox     # pulls that session's data.json from Pulse
 pulse-reel script sessions/2026-11-08-hyrox     # Arabic voice-over lines with the real numbers (+ English captions) → record them
 pulse-reel stt    sessions/2026-11-08-hyrox     # word-timed transcript of the voice-over
+pulse-reel match  sessions/2026-11-08-hyrox     # script ↔ recording: voice windows per scene, what was heard, numbers checked
 #  → edit project.json: one scene per station (clip, in-point, VO word window, corrected caption)
 pulse-reel timeline sessions/2026-11-08-hyrox   # timing + tempo check
 pulse-reel stills   sessions/2026-11-08-hyrox   # overlay QA stills

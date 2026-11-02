@@ -21,6 +21,7 @@ SCENE_TEMPLATE = {
     "amb_db": -9,             # original clip audio gain (-90 = mute)
     "vo": {"file": "main", "from": 5.44, "to": 10.26},  # word window in the VO (seconds, as transcribed); or {"file":"warmup"} for a whole extra file
     "caption": "",            # corrected Arabic caption (words are mapped to the transcript timings)
+    "script_ok": False,       # he read the line and verified it (web app checkbox)
     "script": "",             # the line he was asked to record (from `pulse-reel script`); caption starts as a copy of it
     "caption_en": "",         # English line under the Arabic caption, shown when captions.en is true
     "title": None,            # override: [kicker, name, big, sub]

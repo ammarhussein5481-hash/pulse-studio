@@ -12,7 +12,7 @@ from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
-STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script"}
+STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script", "match"}
 RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
@@ -64,7 +64,7 @@ def _state(d: Path) -> dict:
     data = datamod.empty(proj) if proj["session"].get("source") == "none" else _jload(b / "data.json")
     return {"id": d.name, "project": proj, "raw": raw, "vo": vo, "clips": _jload(b / "clips.json") or [],
             "stt": stt, "timeline": _jload(b / "timeline.json"), "data": data, "stills": stills,
-            "outs": _latest(d / "out", proj["name"]), "frames": (b / "frames").exists(),
+            "outs": _latest(d / "out", proj["name"]), "match": _jload(b / "match.json"), "frames": (b / "frames").exists(),
             "env": {"token": bool(os.environ.get("PULSE_TOKEN")), "share": os.environ.get("PULSE_SHARE", "")}}
 
 # ---------- routes ----------

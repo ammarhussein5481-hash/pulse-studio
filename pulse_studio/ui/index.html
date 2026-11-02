@@ -146,8 +146,8 @@ function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
 
 function render(){
   const p=S.project, tl=S.timeline, d=S.data;
-  const done={ingest:S.clips.length>0,data:!!d,script:p.scenes.some(s=>s.script),stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
-  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['script','3 · Script'],['stt','4 · Transcribe'],['timeline','5 · Timeline'],['stills','6 · Stills'],['build','7 · Build'],['audio','Remix audio'],['publish','Publish']];
+  const done={ingest:S.clips.length>0,data:!!d,script:p.scenes.some(s=>s.script),match:!!S.match,stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
+  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['script','3 · Script'],['stt','4 · Transcribe'],['match','4b · Match'],['timeline','5 · Timeline'],['stills','6 · Stills'],['build','7 · Build'],['audio','Remix audio'],['publish','Publish']];
   const warn=tl&&tl.tempo>=1.12?`<span class="warn">tempo ×${tl.tempo} — drop a phrase or raise the budget</span>`:'';
   $('main').innerHTML=`
   <div class="top"><h1>${esc(p.name)}</h1><div class="meta">${esc(p.session.date)} · ${esc(p.session.type)} · ${p.vo.budget_s}s · ${esc(p.identity)}</div>
@@ -197,7 +197,13 @@ function render(){
 
   <section><h2>Voice-over script <span class="pill">${p.scenes.filter(s=>s.script).length} lines</span> <button class="ghost sm" onclick="copyScript()">Copy all</button> <label class="hint" style="margin-left:8px"><input type="checkbox" ${(p.captions?.en??true)?'checked':''} onchange="(p().captions=p().captions||{}).en=this.checked;save()"> English line under the captions</label></h2>
     <p class="hint">Generated from the clips + session data (step 3). Record it as ONE file, ~1 s pause between lines, numbers as written — then drop it in Voice-over and Transcribe. Edit any line here; it is also the caption. Ask the Assistant to reword if you want another tone.</p>
-    ${p.scenes.some(s=>s.script)?`<ol style="margin:0;padding-left:22px">${p.scenes.map((s,i)=>`<li style="margin:6px 0"><span class="pill">${esc(s.key)}</span> <input class="ar" value="${esc(s.script||'')}" style="width:62%;font-family:'Noto Kufi Arabic';direction:rtl;font-size:15px" onchange="const o=sc(${i}).script;sc(${i}).script=this.value;if(!sc(${i}).caption||sc(${i}).caption===o)sc(${i}).caption=this.value;save()"> <input value="${esc(s.caption_en||'')}" placeholder="English" style="width:30%" onchange="sc(${i}).caption_en=this.value;save()"></li>`).join('')}</ol>`:'<p class="hint">run <b>3 · Script</b> after Clips and Data</p>'}
+    ${p.scenes.some(s=>s.script)?`<p class="hint">${p.scenes.filter(s=>s.script_ok).length}/${p.scenes.length} verified · ${S.match?`matched to the recording: ${S.match.filter(r=>r.ok).length} ok, ${S.match.filter(r=>r.ok===false).length} to check`:'after Transcribe run <b>4b · Match</b> to compare with what you actually said'}</p>
+    <table><tr><th style="width:90px">scene</th><th>Arabic — what to record (also the caption)</th><th style="width:28%">English line</th><th style="width:70px">verified</th></tr>
+    ${p.scenes.map((s,i)=>{const m=(S.match||[]).find(r=>r.key===s.key); return `<tr><td><span class="pill">${esc(s.key)}</span></td>
+      <td><textarea style="width:100%;min-height:40px;font-family:'Noto Kufi Arabic';direction:rtl;font-size:16px" onchange="const o=sc(${i}).script;sc(${i}).script=this.value;if(!sc(${i}).caption||sc(${i}).caption===o)sc(${i}).caption=this.value;sc(${i}).script_ok=false;save()">${esc(s.script||'')}</textarea>
+        ${m&&m.ok!==null&&m.ok!==undefined?`<div class="hint ${m.ok?'':'warn'}" style="direction:rtl;text-align:right;margin-top:3px">${m.ok?'✓':'!'} heard (${Math.round((m.ratio||0)*100)}%${m.from!=null?` · ${m.from}–${m.to}s`:''}): ${esc(m.heard||m.note||'')}${(m.diffs||[]).filter(d=>d.number).map(d=>`<br><b>number differs</b> — script «${esc(d.expected)}» · heard «${esc(d.heard)}»`).join('')}</div>`:''}</td>
+      <td><textarea style="width:100%;min-height:40px;font-size:13px" onchange="sc(${i}).caption_en=this.value;save()">${esc(s.caption_en||'')}</textarea></td>
+      <td style="text-align:center"><input type="checkbox" ${s.script_ok?'checked':''} onchange="sc(${i}).script_ok=this.checked;save()" title="I read it, it's right"></td></tr>`}).join('')}</table>`:'<p class="hint">run <b>3 · Script</b> after Clips and Data</p>'}
   </section>
 
   <section><h2>Session data ${d&&d._session?.none?'<span class="pill">none · titles + captions only</span>':d?`<span class="pill">${esc(d._session?.date)} · ${fmt(d._session?.total_s||0)} · avg ${d._session?.avg_hr} bpm · ${d._session?.kcal} kcal</span>`:'<span class="pill">not fetched</span>'}</h2>
