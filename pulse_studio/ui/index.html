@@ -269,6 +269,7 @@ function sceneRow(s,i,tl){
       <div class="f">
         <label>key <select onchange="sc(${i}).key=this.value;save()">${stationKeys().concat(stationKeys().includes(s.key)?[]:[s.key]).map(k=>`<option ${k===s.key?'selected':''}>${k}</option>`).join('')}</select></label>
         <label>name <input value="${esc(s.name||'')}" placeholder="on-screen name" style="width:130px" onchange="sc(${i}).name=this.value||null;save()"></label>
+        <label title="data parts this scene summarises — comma-separated keys from the session data; empty = none${S.data?'. available: '+Object.keys(S.data).filter(k=>!k.startsWith('_')).join(', '):''}">parts <input value="${esc((s.parts||[]).join(', '))}" placeholder="${S.data?Object.keys(S.data).filter(k=>!k.startsWith('_')).slice(0,3).join(', ')+'…':'rep1, rep2'}" style="width:150px" onchange="setParts(${i},this.value)"></label>
         ${s.shots&&s.shots.length?`<span class="hint">${s.shots.length} shots — edit below</span><button class="ghost sm" onclick="event.stopPropagation();addShot(${i})">+ shot</button>`:`<label>clip <select onchange="sc(${i}).clip=this.value;save()"><option></option>${S.raw.concat(S.raw.includes(s.clip)?[]:[s.clip]).map(c=>`<option ${c===s.clip?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
         <label>in <input type="number" step="0.1" value="${s.in}" onchange="sc(${i}).in=+this.value;save()"> s</label>
         <label>crop <input value="${esc(s.crop)}" style="width:90px" onchange="sc(${i}).crop=this.value;save()" title="auto | full | w:h:x:y"></label><button class="ghost sm" onclick="event.stopPropagation();addShot(${i})" title="turn this into a multi-shot scene (videos or photos in sequence)">+ shot</button>`}
@@ -299,6 +300,9 @@ function sceneRow(s,i,tl){
 const p=()=>S.project, sc=i=>S.project.scenes[i];
 function setWin(i,v){try{sc(i).vo.windows=v?JSON.parse(v):undefined; if(!v) delete sc(i).vo.windows; save()}catch(e){alert('windows must be JSON like [[1.2,3.4],[5,6]]')}}
 function selectScene(i){ if(selScene===i) return; selScene=i; document.querySelectorAll('.scene').forEach(el=>el.classList.toggle('on',+el.dataset.i===i)); document.querySelectorAll('.words .w').forEach(w=>w.classList.toggle('sel',inSel(w.dataset.f,+w.dataset.s))); }
+function setParts(i,v){const keys=v.split(',').map(x=>x.trim()).filter(Boolean); sc(i).parts=keys.length?keys:null;
+  const known=S.data?Object.keys(S.data).filter(k=>!k.startsWith('_')):[]; const bad=keys.filter(k=>!known.includes(k));
+  if(bad.length&&known.length) alert('Unknown part(s): '+bad.join(', ')+'\nAvailable: '+known.join(', ')+'\n\nKept as typed.'); save()}
 function renameScene(i,v){v=v.trim().replace(/\s+/g,'_'); if(!v||p().scenes.some((s,k)=>k!==i&&s.key===v)){alert('name must be unique');render();return} const s=sc(i); if(!s.parts&&S.data&&S.data[s.key]) s.parts=[s.key]; s.key=v; save()}
 function addShot(i){const s=sc(i); if(!s.shots||!s.shots.length){s.shots=s.clip?[{file:s.clip,in:s.in||0,crop:s.crop||'auto',w:1}]:[]} s.shots.push({file:S.raw[0]||'',in:0,crop:'auto',w:1}); save()}
 function delShot(i,j){const s=sc(i); s.shots.splice(j,1); if(!s.shots.length) s.shots=null; save()}

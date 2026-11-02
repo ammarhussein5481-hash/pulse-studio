@@ -96,11 +96,13 @@ function aggregate(parts){ const ds=parts.map(k=>D[k]).filter(Boolean); if(!ds.l
     reps:reps.length||null, best:paces.length?Math.min(...paces):null, avgpace:reps.length?paces.reduce((a,b)=>a+b,0)/paces.length:null, rec_s:reps[0]?.rec_s,
     trace:trace.filter((_,i)=>i%step===0), laps:ds.length>1?ds.map(d=>[d.s,d.m,d.hr]):undefined, agg:true, keys:parts}; }
 function sceneData(key){ const o=OPT[key]||{}; return o.parts&&o.parts.length?aggregate(o.parts):D[key]; }
+// a scene whose `parts` is exactly one data part behaves as if its key were that part (title + diagram), keeping its own name
+function partKey(key){ const o=OPT[key]||{}; return o.parts&&o.parts.length===1&&D[o.parts[0]]?o.parts[0]:key; }
 function autoMetaScene(key){ const o=OPT[key]||{}; const d=sceneData(key); let m;
   if(d&&d.agg){ const i=ORDER.indexOf(o.parts[0]); const no=`${KICK} ${String(i+1).padStart(2,"0")}–${String(ORDER.indexOf(o.parts[o.parts.length-1])+1).padStart(2,"0")}`;
     if(d.reps){ m=[`THE WORK${SES.target?` · TARGET ${SES.target}`:""}`, d.station, mm(d.avgpace), [`AVG <b>${mm(d.avgpace)}</b> /KM`, `BEST <b>${mm(d.best)}</b>`, d.hr?`AVG <b>${d.hr}</b> BPM`:"", d.rec_s?`REC <b>${mm(d.rec_s)}</b>`:""].filter(Boolean).join(" · ")]; }
     else m=[no, (key.replace(/_/g," ")).toUpperCase(), mm(d.s), [d.m?`<b>${km1(d.m)}</b> KM`:"", d.hr?`AVG <b>${d.hr}</b> BPM`:"", d.max?`MAX <b>${d.max}</b>`:""].filter(Boolean).join(" · ")]; }
-  else m=autoMeta(key);
+  else m=autoMeta(partKey(key));
   if(o.name) m=[m[0], o.name.toUpperCase(), m[2], m[3]];
   return m; }
 const META=new Proxy({},{get:(_,k)=>autoMetaScene(k)});
@@ -199,8 +201,8 @@ const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>t
  closing:(s)=>zones(s,D._session)};
 let upd=null;
 function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.removeChild(svg.firstChild); upd=null;
-  const SD=sceneData(sc.key);
-  const b=(SD&&SD.agg?(SD.reps?(s)=>repsAll(s,SD):((SD.laps&&SD.laps.length>1)?(s)=>lapBars(s,SD):(SD.trace||[]).length>1?(s)=>hrTrace(s,SD.trace,120,960,40,230,SD.max):null)):null)||((KIND==="hyrox"||sc.key==="closing")&&BUILD[sc.key])||(/^rep\d+$/.test(sc.key)&&D[sc.key]?(s,d)=>reps(s,d,sc.key):null)||(D[sc.key]&&(D[sc.key].laps&&D[sc.key].laps.length>1?(s,d)=>lapBars(s,d):(D[sc.key].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):(SD||D[sc.key]); if(b&&has) upd=b(svg,SD||D[sc.key]);
+  const SD=sceneData(sc.key); const pk=partKey(sc.key);
+  const b=(SD&&SD.agg?(SD.reps?(s)=>repsAll(s,SD):((SD.laps&&SD.laps.length>1)?(s)=>lapBars(s,SD):(SD.trace||[]).length>1?(s)=>hrTrace(s,SD.trace,120,960,40,230,SD.max):null)):null)||((KIND==="hyrox"||sc.key==="closing")&&BUILD[pk])||(/^rep\d+$/.test(pk)&&D[pk]?(s,d)=>reps(s,d,pk):null)||(D[pk]&&(D[pk].laps&&D[pk].laps.length>1?(s,d)=>lapBars(s,d):(D[pk].trace||[]).length>1?(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max):null)); const has=sc.key==="closing"?(SES.zones&&(SES.full_trace||[]).length):(SD||D[pk]); if(b&&has) upd=b(svg,SD||D[pk]);
   const m=META[sc.key]; $("kicker").textContent=m[0];
   if(sc.key==="closing"){$("name").innerHTML=`<svg width="104" height="104" viewBox="0 0 100 100" style="vertical-align:-14px;margin-right:22px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))"><rect x="2" y="2" width="96" height="96" rx="22" fill="__OR__"/><rect x="22" y="58" width="14" height="22" rx="3" fill="__BONE__"/><rect x="43" y="42" width="14" height="38" rx="3" fill="__BONE__"/><rect x="64" y="24" width="14" height="56" rx="3" fill="__BONE__"/></svg>${m[1]}`;}
   else $("name").textContent=m[1];
