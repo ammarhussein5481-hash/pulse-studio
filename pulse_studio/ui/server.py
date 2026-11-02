@@ -12,7 +12,7 @@ from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("PULSE_SESSIONS", "sessions")).resolve()
-STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest"}
+STEPS = {"ingest", "data", "stt", "timeline", "stills", "build", "audio", "publish", "preview", "import", "suggest", "script"}
 RAW_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; VO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm", ".opus"}
 
 app = FastAPI(title="Pulse Studio")
@@ -280,7 +280,7 @@ async def run_step(sid: str, step: str, req: Request):
     if CURRENT and CURRENT.running: raise HTTPException(409, "a job is already running")
     j = await req.json() if (await req.body()) else {}
     cmd = [sys.executable, "-m", "pulse_studio.cli", step, str(d)]
-    if j.get("force") and step in ("data", "stt"): cmd.append("--force")
+    if j.get("force") and step in ("data", "stt", "script"): cmd.append("--force")
     if j.get("only") and step == "build": cmd += ["--only", j["only"]]
     if j.get("no_frames") and step == "build": cmd.append("--no-frames")
     if j.get("times") and step == "stills": cmd.append(j["times"])

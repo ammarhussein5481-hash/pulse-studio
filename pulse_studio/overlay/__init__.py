@@ -15,7 +15,7 @@ def write_page(dir: Path, proj: dict, data: dict, tl: dict) -> Path:
     titles = {s["key"]: s["title"] for s in proj["scenes"] if s.get("title")}
     opts = {}; (b / "assets").mkdir(exist_ok=True)
     for s in proj["scenes"]:
-        o = {"fx": s.get("fx") or [], "style": s.get("style")}
+        o = {"fx": s.get("fx") or [], "style": s.get("style"), "en": (s.get("caption_en") or "") if (proj.get("captions") or {}).get("en", True) else ""}
         for k in ("inset", "phone"):
             v = s.get(k)
             if v and v.get("file"):

@@ -25,6 +25,7 @@ html,body{margin:0;width:1080px;height:1920px;background:transparent;overflow:hi
 #cap{position:absolute;left:60px;right:60px;top:1400px;text-align:center;font-family:"Noto Kufi Arabic";font-size:46px;line-height:1.5;color:var(--bone);direction:rtl}
 #cap span{display:inline-block;transition:none}
 #cap span.on{color:var(--or)}
+#capen{position:absolute;left:80px;right:80px;top:1540px;text-align:center;font-family:Archivo;font-weight:600;font-size:26px;line-height:1.3;color:var(--bone);opacity:.85;letter-spacing:.01em}
 #grid{position:absolute;left:80px;right:80px;top:640px;display:grid;grid-template-columns:1fr 1fr;gap:50px 30px;text-align:center}
 #grid .v{font-family:Anton;font-size:140px;color:var(--or);line-height:1;font-variant-numeric:tabular-nums}
 #grid .e{font-family:Archivo;font-weight:700;font-size:26px;letter-spacing:.25em;color:var(--bone);margin-top:6px}
@@ -55,7 +56,7 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 <div id="top" class="sh"><div id="kicker" class="lat"></div><div id="name"></div><div id="big"></div><div id="sub"></div></div>
 <div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="phone"><img></div>
 <svg id="dia" viewBox="0 0 1080 300"></svg>
-<div id="cap" class="sh"></div><div id="flash"></div>
+<div id="cap" class="sh"></div><div id="capen" class="sh"></div><div id="flash"></div>
 <script src="data.js"></script>
 <script>
 const D=window.DATA.data, TL=window.DATA.timeline.scenes;
@@ -173,6 +174,7 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("cap").className=fx.has("chat")?"chat sh":"sh";
   if(fx.has("chat")){ const bubs=[]; let cur=[]; cw.forEach((w,i)=>{cur.push(i); if(/[.،؟!]$/.test(w)||i===cw.length-1){bubs.push(cur);cur=[]}});
     $("cap").innerHTML=bubs.map((ix,k)=>{const j=nt===mc?ix[0]:Math.round(ix[0]*(nt-1)/Math.max(1,mc-1)); return `<div class="bub ${k%2?"me":""}" data-s="${tw[Math.min(j,nt-1)][1]}">${ix.map(i=>cw[i]).join(" ")}</div>`;}).join(""); }
+  $("capen").textContent=o.en||""; $("cap").style.top=o.en?"1340px":"1400px";
   // b-roll inset + phone mockup
   const ins=$("inset"); ins.style.opacity=0; if(o.inset){ins.querySelector("img").src=o.inset.file; ins.querySelector(".l").textContent=o.inset.label||""; ins.style.width=(o.inset.w||300)+"px"; const [x,y]=o.inset.pos||[740,980]; ins.style.left=x+"px"; ins.style.top=y+"px";}
   const ph=$("phone"); ph.style.opacity=0; if(o.phone){ph.querySelector("img").src=o.phone.file;}
@@ -188,7 +190,7 @@ function render(t){
   const u=t-sc.start, dur=sc.end-sc.start, rem=sc.end-t, m=META[sc.key], fin=sc.key==="closing"; const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]);
   const ST=fx.has("storm")?Math.min(0.9,0.16*(+$("storm").dataset.n||0)):0, uu=Math.max(0,u-ST);
   if(ST){const k=Math.floor(u/0.16), on=u<ST; $("storm").style.display=on?"block":"none"; [...$("storm").children].forEach((c,i)=>{c.style.display=i===k?"block":"none"; const q=(u-k*0.16)/0.16; c.style.transform=`scale(${1.25-0.25*eo(clamp(q*3,0,1))})`;});}
-  const vis=clamp(u/0.3,0,1)*clamp(rem/0.3,0,1); $("top").style.opacity=vis; $("dia").style.opacity=vis*clamp((u-0.5)/0.3,0,1); $("grid").style.opacity=vis; $("cap").style.opacity=vis;
+  const vis=clamp(u/0.3,0,1)*clamp(rem/0.3,0,1); $("top").style.opacity=vis; $("dia").style.opacity=vis*clamp((u-0.5)/0.3,0,1); $("grid").style.opacity=vis; $("cap").style.opacity=vis; $("capen").style.opacity=vis*0.85;
   const i=ORDER.indexOf(sc.key); const N=Math.max(1,ORDER.length), n=fin?N:(i<0?0:i+1); $("prog").firstElementChild.style.width=(n/N*100)+"%"; $("prog").style.opacity=i<0&&!fin?0:1; $("pl").textContent=i<0?"":`${String(n).padStart(2,"0")} / ${String(N).padStart(2,"0")}`; $("pl").style.opacity=vis;
   $("kicker").style.transform=`translateY(${(1-eo(clamp(uu/0.35,0,1)))*-18}px)`; $("kicker").style.opacity=ST&&u<ST?0:1;
   const a=ST&&u<ST?0:eo(clamp((uu-0.08)/0.4,0,1)); $("name").style.transform=`scale(${0.92+0.08*a})`; $("name").style.opacity=a;

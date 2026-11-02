@@ -146,8 +146,8 @@ function voFiles(){return ['main',...Object.keys(S.project.vo.extra||{})]}
 
 function render(){
   const p=S.project, tl=S.timeline, d=S.data;
-  const done={ingest:S.clips.length>0,data:!!d,stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
-  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['stt','3 · Transcribe'],['timeline','4 · Timeline'],['stills','5 · Stills'],['build','6 · Build'],['audio','Remix audio'],['publish','Publish']];
+  const done={ingest:S.clips.length>0,data:!!d,script:p.scenes.some(s=>s.script),stt:Object.keys(S.stt).length>0,timeline:!!tl,stills:S.stills.length>0,build:S.outs.length>0,audio:S.frames,publish:S.outs.length>0};
+  const steps=[['ingest','1 · Clips'],['data','2 · Data'],['script','3 · Script'],['stt','4 · Transcribe'],['timeline','5 · Timeline'],['stills','6 · Stills'],['build','7 · Build'],['audio','Remix audio'],['publish','Publish']];
   const warn=tl&&tl.tempo>=1.12?`<span class="warn">tempo ×${tl.tempo} — drop a phrase or raise the budget</span>`:'';
   $('main').innerHTML=`
   <div class="top"><h1>${esc(p.name)}</h1><div class="meta">${esc(p.session.date)} · ${esc(p.session.type)} · ${p.vo.budget_s}s · ${esc(p.identity)}</div>
@@ -193,6 +193,11 @@ function render(){
       <div class="words">${segs.flatMap(s=>s.words).map(w=>`<span class="w ${w[3]<0.5?'lo':''} ${inSel(name,w[1])?'sel':''}" onclick="pickWord('${name}',${w[1]},${w[2]})"><small>${w[1]}</small>${esc(w[0])}</span>`).join(' ')}</div>`).join('')}
   </section>
   </div>
+
+  <section><h2>Voice-over script <span class="pill">${p.scenes.filter(s=>s.script).length} lines</span> <button class="ghost sm" onclick="copyScript()">Copy all</button> <label class="hint" style="margin-left:8px"><input type="checkbox" ${(p.captions?.en??true)?'checked':''} onchange="(p().captions=p().captions||{}).en=this.checked;save()"> English line under the captions</label></h2>
+    <p class="hint">Generated from the clips + session data (step 3). Record it as ONE file, ~1 s pause between lines, numbers as written — then drop it in Voice-over and Transcribe. Edit any line here; it is also the caption. Ask the Assistant to reword if you want another tone.</p>
+    ${p.scenes.some(s=>s.script)?`<ol style="margin:0;padding-left:22px">${p.scenes.map((s,i)=>`<li style="margin:6px 0"><span class="pill">${esc(s.key)}</span> <input class="ar" value="${esc(s.script||'')}" style="width:62%;font-family:'Noto Kufi Arabic';direction:rtl;font-size:15px" onchange="const o=sc(${i}).script;sc(${i}).script=this.value;if(!sc(${i}).caption||sc(${i}).caption===o)sc(${i}).caption=this.value;save()"> <input value="${esc(s.caption_en||'')}" placeholder="English" style="width:30%" onchange="sc(${i}).caption_en=this.value;save()"></li>`).join('')}</ol>`:'<p class="hint">run <b>3 · Script</b> after Clips and Data</p>'}
+  </section>
 
   <section><h2>Session data ${d&&d._session?.none?'<span class="pill">none · titles + captions only</span>':d?`<span class="pill">${esc(d._session?.date)} · ${fmt(d._session?.total_s||0)} · avg ${d._session?.avg_hr} bpm · ${d._session?.kcal} kcal</span>`:'<span class="pill">not fetched</span>'}</h2>
     ${d?`<table><tr><th>key</th><th>station</th><th>time</th><th>HR avg/max</th><th>steps</th><th>m</th><th>erg</th></tr>
@@ -263,6 +268,7 @@ function sceneRow(s,i,tl){
         ${s.key==='closing'?`<label>style <select onchange="sc(${i}).style=this.value||null;save()"><option value="">stats</option><option value="checklist" ${s.style==='checklist'?'selected':''}>checklist</option></select></label>`:''}
       </div>
       <textarea onchange="sc(${i}).caption=this.value;save()" placeholder="caption (Arabic, corrected)">${esc(s.caption)}</textarea>
+      ${(p.captions?.en??true)?`<input value="${esc(s.caption_en||'')}" placeholder="English caption line" style="width:100%;margin-top:4px" onchange="sc(${i}).caption_en=this.value;save()">`:''}
     </div></div>`;
 }
 const p=()=>S.project, sc=i=>S.project.scenes[i];
@@ -280,6 +286,7 @@ function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
 let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
+function copyScript(){const t=p().scenes.map((s,i)=>`${i+1}. ${s.script||''}`).join('\n'); navigator.clipboard.writeText(t).then(()=>toast('script copied'))}
 let PRESETS=[], MOUNTS=[];
 async function loadPresets(){try{PRESETS=(await api('/api/presets')).presets; MOUNTS=(await api('/api/mounts')).mounts}catch(e){}}
 async function applyPreset(){const n=$('presel').value; if(!n) return; await api(`/api/s/${SID}/preset/${encodeURIComponent(n)}`,{method:'POST'}); toast('preset applied'); refresh()}
@@ -324,6 +331,7 @@ async function run(step,extra){
   if(step==='build'&&!confirm('Full build takes ~12 minutes on the laptop. Continue?')) return;
   const body=Object.assign({},extra||{});
   if(step==='stt'&&Object.keys(S.stt).length&&confirm('Re-transcribe (force)?')) body.force=true;
+  if(step==='script'&&S.project.scenes.some(s=>s.script)&&confirm('Regenerate the script? Lines you edited will be replaced.')) body.force=true;
   if(step==='data'&&S.data&&confirm('Re-fetch data (force)?')) body.force=true;
   if(step==='build'&&S.frames){const only=prompt('Rebuild only these scene keys (comma), or leave empty for all',''); if(only===null) return; if(only) body.only=only}
   try{const r=await api(`/api/s/${SID}/run/${step}`,J('POST',body)); job={id:r.job,step}; render(); showLog(`pulse-reel ${step}`); $('logpre').textContent='';

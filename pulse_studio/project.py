@@ -8,6 +8,7 @@ TEMPLATE = {
     "identity": "climbday",
     "session": {"date": "", "type": "hyrox", "source": "pulse"},  # source: pulse | file | none (no numbers); pulse sessions also carry id + file
     "vo": {"main": "vo/main.m4a", "extra": {}, "language": "ar", "dialect_hint": "", "tempo_max": 1.15, "budget_s": 60},
+    "captions": {"en": True},   # English second line under the Arabic caption
     "audio": {"music": True, "music_file": "generated", "music_in": 0, "music_db": -5, "sfx": True, "sfx_db": -7, "amb_db": -4, "duck_threshold": 0.02, "duck_ratio": 6},
     "scenes": [],
 }
@@ -20,6 +21,8 @@ SCENE_TEMPLATE = {
     "amb_db": -9,             # original clip audio gain (-90 = mute)
     "vo": {"file": "main", "from": 5.44, "to": 10.26},  # word window in the VO (seconds, as transcribed); or {"file":"warmup"} for a whole extra file
     "caption": "",            # corrected Arabic caption (words are mapped to the transcript timings)
+    "script": "",             # the line he was asked to record (from `pulse-reel script`); caption starts as a copy of it
+    "caption_en": "",         # English line under the Arabic caption, shown when captions.en is true
     "title": None,            # override: [kicker, name, big, sub]
     "fx": [],                 # effects: "zoomcut" (snap zoom-in on the cut), "storm" (headline storm before the title), "glass" (liquid-glass panel behind the title), "chat" (caption as chat bubbles)
     "inset": None,            # b-roll overlay: {"file": "assets/erg.png", "at": 1.0, "w": 300, "pos": [740, 980], "label": "ERGDATA"}

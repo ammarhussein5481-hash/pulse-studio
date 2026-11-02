@@ -10,6 +10,7 @@
   pulse-reel build <dir> [--only key,key] [--no-frames]     base video, overlay frames, sfx, music, composite → out/<name>-vN.mp4
   pulse-reel audio <dir>                                    re-mix audio only (music/sfx/amb levels changed) → new out version
   pulse-reel publish <dir> [--to user@host:/path/]          scp the latest out file somewhere (default: PULSE_SHARE)
+  pulse-reel script <dir> [--force]                         Arabic voice-over lines per scene with the real numbers (+ English captions) → record them
   pulse-reel preview <dir> <key> [--len 3]                 3 s of one scene with overlay + voice → build/preview/<key>.mp4
   pulse-reel import <dir> <sdcard-folder> [--date|--all]    copy that day's videos → raw/, audio → vo/
   pulse-reel suggest <dir> [--all]                          first draft: clips in shoot order, in-points from the motion profile
@@ -19,7 +20,7 @@
 from __future__ import annotations
 import argparse, json, os, shutil, subprocess, sys
 from pathlib import Path
-from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg
+from . import project, pulse, ingest, data as datamod, stt as sttmod, timeline as tlmod, media, overlay, sfx, music, mix, suggest as sugg, script as scriptmod
 from .config import FPS, HOME, probe, node, chrome, ffmpeg
 
 def _latest_version(outdir: Path, name: str) -> int:
@@ -94,6 +95,13 @@ def cmd_audio(a):
     if proj["audio"].get("music", True): music.prepare(proj, tl, b / "music.wav")
     v = _latest_version(outdir, proj["name"]) + 1; out = outdir / f"{proj['name']}-v{v}.mp4"
     mix.composite(a.dir, proj, tl, out); print(f"done: {out} {mix.verify(out)}")
+
+def cmd_script(a):
+    """Arabic voice-over lines (+ English captions) per scene from the session data — what Ammar records next."""
+    proj = project.load(a.dir); d = datamod.fetch(a.dir, proj)
+    lines = scriptmod.write(a.dir, proj, d, force=a.force); project.save(a.dir, proj)
+    for i, l in enumerate(lines, 1): print(f"{i:2d}. {l['key']:11s} {l['text']}")
+    print(f"\nsaved to {a.dir}/build/script.md and into project.json (scene.script / caption / caption_en, vo.dialect_hint)\nrecord it as ONE file → vo/, then: pulse-reel stt {a.dir}")
 
 def cmd_preview(a):
     """3 s of ONE scene with its overlay + voice, in ~20-40 s instead of a full build → build/preview/<key>.mp4"""
@@ -179,6 +187,7 @@ def main(argv=None):
     p = sp.add_parser("build"); p.add_argument("dir"); p.add_argument("--only"); p.add_argument("--no-frames", action="store_true"); p.set_defaults(f=cmd_build)
     p = sp.add_parser("audio"); p.add_argument("dir"); p.set_defaults(f=cmd_audio)
     p = sp.add_parser("publish"); p.add_argument("dir"); p.add_argument("--to"); p.set_defaults(f=cmd_publish)
+    p = sp.add_parser("script"); p.add_argument("dir"); p.add_argument("--force", action="store_true", help="overwrite lines you edited"); p.set_defaults(f=cmd_script)
     p = sp.add_parser("preview"); p.add_argument("dir"); p.add_argument("key"); p.add_argument("--len", default="3"); p.set_defaults(f=cmd_preview)
     p = sp.add_parser("import"); p.add_argument("dir"); p.add_argument("src"); p.add_argument("--date"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_import)
     p = sp.add_parser("suggest"); p.add_argument("dir"); p.add_argument("--all", action="store_true", help="also overwrite in-points already set"); p.set_defaults(f=cmd_suggest)
