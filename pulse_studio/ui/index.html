@@ -192,7 +192,7 @@ function render(){
     <p class="hint">${S.vo.map(f=>`<span class="pill">${esc(f)} <a style="cursor:pointer" title="replace" onclick="replaceFile('vo','${esc(f)}')">⟳</a> <a style="cursor:pointer" title="delete" onclick="deleteFile('vo','${esc(f)}',0)">✕</a></span> `).join('')} main = <b>${esc(p.vo.main)}</b>${Object.entries(p.vo.extra||{}).map(([k,v])=>` · ${k} = ${esc(v)}`).join('')}</p>
     <div class="row"><label class="hint">Dialect hint <input value="${esc(p.vo.dialect_hint)}" style="width:260px" onchange="p().vo.dialect_hint=this.value;save()"></label></div>
     ${Object.entries(S.stt).map(([name,segs])=>`<h3 style="margin-top:12px;font-size:14px;color:var(--mute)">${esc(name)} — click a word for the start, a second for the end of the selected scene</h3>
-      <div class="words">${segs.flatMap(s=>s.words).map(w=>`<span class="w ${w[3]<0.5?'lo':''} ${inSel(name,w[1])?'sel':''}" onclick="pickWord('${name}',${w[1]},${w[2]})"><small>${w[1]}</small>${esc(w[0])}</span>`).join(' ')}</div>`).join('')}
+      <div class="words">${segs.flatMap(s=>s.words).map(w=>`<span class="w ${w[3]<0.5?'lo':''} ${inSel(name,w[1])?'sel':''}" data-f="${name}" data-s="${w[1]}" onclick="pickWord('${name}',${w[1]},${w[2]})"><small>${w[1]}</small>${esc(w[0])}</span>`).join(' ')}</div>`).join('')}
   </section>
   </div>
 
@@ -261,7 +261,7 @@ function inSel(name,t){const s=S.project.scenes[selScene]; if(!s||!s.vo||s.vo.fi
 function sceneRow(s,i,tl){
   const t=tl&&tl.scenes.find(x=>x.key===s.key);
   const win=s.vo.windows?JSON.stringify(s.vo.windows):'';
-  return `<div class="scene ${i===selScene?'on':''}" onclick="selScene=${i};render()">
+  return `<div class="scene ${i===selScene?'on':''}" data-i="${i}" onclick="selectScene(${i})">
     <div><div class="k"><input value="${esc(s.key)}" title="scene id — rename freely (data stays linked through 'parts')" style="font-family:Anton;font-size:20px;text-transform:uppercase;color:var(--or);background:transparent;border:0;border-bottom:1px dashed var(--line);width:130px;padding:0" onchange="renameScene(${i},this.value)"><small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}${s.parts&&s.parts.length>1?`<br>${s.parts.length} parts: ${esc(s.parts[0])}…${esc(s.parts[s.parts.length-1])}`:''}</small></div>
       ${(s.shots&&s.shots.length?s.shots:(s.clip?[{file:s.clip,in:s.in}]:[])).filter(x=>S.raw.includes(x.file)).map(x=>`<img class="th" src="/api/s/${SID}/thumb?clip=${encodeURIComponent(x.file)}&t=${(+x.in||0).toFixed(1)}" title="${esc(x.file)} @ ${x.in||0}s — click to scrub" onclick="event.stopPropagation();selScene=${i};openPlayer('${esc(x.file)}',${+x.in||0})">`).join('')||'<div class="th nope">no media</div>'}
       <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button><button class="ghost sm" onclick="event.stopPropagation();selScene=${i};run('preview',{key:'${esc(s.key)}'})" title="3 s of this scene with overlay + voice, ~30 s">▶ preview</button></div></div>
@@ -298,6 +298,7 @@ function sceneRow(s,i,tl){
 }
 const p=()=>S.project, sc=i=>S.project.scenes[i];
 function setWin(i,v){try{sc(i).vo.windows=v?JSON.parse(v):undefined; if(!v) delete sc(i).vo.windows; save()}catch(e){alert('windows must be JSON like [[1.2,3.4],[5,6]]')}}
+function selectScene(i){ if(selScene===i) return; selScene=i; document.querySelectorAll('.scene').forEach(el=>el.classList.toggle('on',+el.dataset.i===i)); document.querySelectorAll('.words .w').forEach(w=>w.classList.toggle('sel',inSel(w.dataset.f,+w.dataset.s))); }
 function renameScene(i,v){v=v.trim().replace(/\s+/g,'_'); if(!v||p().scenes.some((s,k)=>k!==i&&s.key===v)){alert('name must be unique');render();return} const s=sc(i); if(!s.parts&&S.data&&S.data[s.key]) s.parts=[s.key]; s.key=v; save()}
 function addShot(i){const s=sc(i); if(!s.shots||!s.shots.length){s.shots=s.clip?[{file:s.clip,in:s.in||0,crop:s.crop||'auto',w:1}]:[]} s.shots.push({file:S.raw[0]||'',in:0,crop:'auto',w:1}); save()}
 function delShot(i,j){const s=sc(i); s.shots.splice(j,1); if(!s.shots.length) s.shots=null; save()}
