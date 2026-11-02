@@ -141,7 +141,7 @@ async function pickPulse(id){try{const r=await api('/api/sessions',J('POST',{pul
 function pickOpen(id){$('newdlg').close(); openSession(id)}
 async function pickManual(){const date=$('mdate').value, type=$('mtype').value||'hyrox', nodata=$('mnodata').checked;
   try{const r=await api('/api/sessions',J('POST',{date,type,budget:+$('mbudget').value||60,no_data:nodata})); $('newdlg').close(); await loadSessions(); await openSession(r.id); if(!nodata) run('data')}catch(e){alert(e.message)}}
-async function openSession(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions(); restoreAssistant(id)}
+async function openSession(id){SID=id; S=await api('/api/s/'+id); selScene=Math.min(selScene,Math.max(0,S.project.scenes.length-1)); render(); loadSessions(); restoreAssistant(id); restoreStep(id)}
 async function refresh(){if(SID){S=await api('/api/s/'+SID); render()}}
 async function delSession(){if(!confirm(`Delete ${SID} and everything in it (clips, voice-over, builds)? This cannot be undone.`)) return;
   try{clearTimeout(saveT); await api('/api/s/'+SID,{method:'DELETE'}); SID=null; S=null; $('main').innerHTML='<div class="empty">Pick a session or create one.</div>'; loadSessions(); toast('session deleted')}catch(e){alert(e.message)}}
@@ -401,6 +401,14 @@ async function ask(text){
   text=(text||$('ask').value).trim(); if(!text) return;
   try{const r=await api(`/api/s/${SID}/claude`,J('POST',{prompt:text,new:$('asknew').checked})); askDraft=''; job={id:r.job,step:'claude'}; render(); await restoreAssistant(SID)}
   catch(e){alert(e.message)}
+}
+// after a refresh, pick a running step back up: its dot blinks and the log panel replays and follows it
+async function restoreStep(id){
+  let r; try{r=await api(`/api/s/${id}/running`)}catch(e){return}
+  if(id!==SID||!r.job||(job&&job.id===r.job)) return;
+  job={id:r.job,step:r.step}; render(); showLog(`pulse-reel ${r.step}`); $('logpre').textContent=''; $('logstate').textContent='running';
+  const es=new EventSource(`/api/jobs/${r.job}/stream`); es.onmessage=e=>logLine(JSON.parse(e.data));
+  es.addEventListener('done',e=>{es.close(); logLine(`— exit ${e.data} —`); $('logstate').textContent=e.data==='0'?'done':'failed'; job=null; refresh()});
 }
 // the conversation is kept on the server and shown under the Ask box: back after a refresh, and a running job is picked back up
 const askEl=document.createElement('pre'); askEl.className='askpre'; let askES=null, askOwner=null, askScroll=0;

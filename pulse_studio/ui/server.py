@@ -368,8 +368,14 @@ async def run_step(sid: str, step: str, req: Request):
         if not src.is_dir(): raise HTTPException(400, f"{src} is not a folder")
         cmd.append(str(src)); cmd += ["--all"] if j.get("all") else []
     if step == "suggest" and j.get("all"): cmd.append("--all")
-    CURRENT = Job(cmd, d.parent); JOBS[CURRENT.id] = CURRENT
+    CURRENT = Job(cmd, d.parent); JOBS[CURRENT.id] = CURRENT; CURRENT.sid = sid; CURRENT.step = step
     return {"job": CURRENT.id}
+
+@app.get("/api/s/{sid}/running")
+def running_step(sid: str):
+    """The step running on this session, so the page can pick it back up after a refresh."""
+    _sid(sid); on = CURRENT and CURRENT.running and CURRENT.kind == "step" and getattr(CURRENT, "sid", None) == sid
+    return {"job": CURRENT.id, "step": CURRENT.step} if on else {"job": None, "step": None}
 
 # ---------- Claude (headless Claude Code driving the /reel skill on this session) ----------
 REPO = HERE.parents[1]
