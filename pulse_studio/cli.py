@@ -120,7 +120,16 @@ def cmd_match(a):
     proj = project.load(a.dir); b = Path(a.dir) / "build"
     stt = {f.stem[4:]: json.loads(f.read_text(encoding="utf-8")) for f in b.glob("stt_*.json")}
     if not stt: raise SystemExit("no transcripts — run: pulse-reel stt <dir>")
-    rep = alignmod.align(proj, stt); project.save(a.dir, proj)
+    lines = json.loads((b / "lines.json").read_text()) if (b / "lines.json").exists() else None
+    ld = Path(a.dir) / "vo" / "lines"
+    if lines is None and ld.exists() and any(ld.glob("*.m4a")):   # takes joined by an older version: rebuild the boundaries (0.8 s gaps, scene order)
+        lines, t = {}, 0.0
+        for sc in proj["scenes"]:
+            f = ld / f"{sc['key']}.m4a"
+            if f.exists(): dur = probe(f)["duration"]; lines[sc["key"]] = [round(t, 3), round(t + dur, 3)]; t += dur + 0.8
+        (b / "lines.json").write_text(json.dumps(lines), encoding="utf-8")
+    if lines: print(f"  windows from the {len(lines)} recorded takes (line-by-line recording); text compared for verification only")
+    rep = alignmod.align(proj, stt, lines); project.save(a.dir, proj)
     (b / "match.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
     print(alignmod.describe(rep)); bad = [r["key"] for r in rep if r.get("ok") is False]
     print("\nvoice windows set for every matched scene → next: pulse-reel timeline " + str(a.dir) + (f"\n! check: {', '.join(bad)} (re-record the line or fix the script/caption)" if bad else ""))

@@ -233,10 +233,12 @@ def _assemble_lines(d: Path) -> dict:
     if not takes: return {"lines": [], "main": None}
     gap = ld / ".gap.wav"
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.8", str(gap)], check=True)
-    parts = []
+    parts = []; bounds = {}; t = 0.0
     for k, f in takes.items():
+        dur = config.probe(f)["duration"]; bounds[k] = [round(t, 3), round(t + dur, 3)]; t += dur + 0.8
         parts += [f, gap]
     parts = parts[:-1]; ins = [x for f in parts for x in ("-i", str(f))]
+    (d / "build").mkdir(exist_ok=True); (d / "build" / "lines.json").write_text(json.dumps(bounds), encoding="utf-8")
     fc = "".join(f"[{i}:a]aformat=sample_rates=48000:channel_layouts=mono[a{i}];" for i in range(len(parts))) + "".join(f"[a{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1[out]"
     out = d / "vo" / "main.m4a"
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *ins, "-filter_complex", fc, "-map", "[out]", "-c:a", "aac", "-b:a", "128k", str(out)], check=True)
