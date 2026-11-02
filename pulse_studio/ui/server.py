@@ -138,14 +138,15 @@ def _refresh_clip(d: Path, name: str, remove: bool = False):
     clips = [c for c in (_jload(cj) or []) if c["file"] != name]
     sheet = b / f"sheet_{Path(name).stem}.jpg"
     if remove:
-        sheet.unlink(missing_ok=True)
+        sheet.unlink(missing_ok=True); (b / f"proxy_{Path(name).stem}.mp4").unlink(missing_ok=True)
+        for t in (b / "thumbs").glob(f"{Path(name).stem}_*.jpg"): t.unlink()
     else:
         src = d / "raw" / name
         try:
             pr = config.probe(src)
             c = {"file": name, "created": pr["created"], "duration": round(pr["duration"], 2), "width": pr["width"], "height": pr["height"],
                  "vertical": (pr["width"] or 0) < (pr["height"] or 1)}
-            c["sheet"] = ingest.contact_sheet(src, sheet, c["duration"]); c["motion"] = ingest.motion_profile(src); clips.append(c)
+            c.update(ingest.process_clip(src, b, c["duration"])); clips.append(c)
         except Exception as e:
             print("refresh_clip:", e)
     clips.sort(key=lambda c: (c["created"] or "", c["file"])); cj.write_text(json.dumps(clips, indent=1), encoding="utf-8")
@@ -375,6 +376,13 @@ def job_stop(jid: str):
     j = JOBS.get(jid)
     if j and j.running: j.proc.terminate()
     return {"ok": True}
+
+@app.get("/api/s/{sid}/thumb")
+def thumb(sid: str, clip: str, t: float = 0.0):
+    d = _sid(sid)
+    if not (d / "raw" / Path(clip).name).exists(): raise HTTPException(404)
+    try: return FileResponse(ingest.thumb(d / "build", Path(clip).name, max(0.0, t)))
+    except Exception: raise HTTPException(404)
 
 @app.get("/files/{sid}/{path:path}")
 def files(sid: str, path: str):

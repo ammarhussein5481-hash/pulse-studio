@@ -54,6 +54,8 @@ td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
 .w.lo{color:var(--warn)}
 .scene{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:150px 1fr;gap:10px}
 .scene.on{border-color:var(--or)}
+.scene .th{display:block;width:136px;max-height:140px;object-fit:cover;border-radius:6px;margin-top:8px;cursor:pointer;border:1px solid var(--line);background:#000} .scene .th:hover{border-color:var(--or)}
+.scene .th.nope{height:76px;display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:11px;cursor:default}
 .scene .k{font-family:Anton;font-size:20px;text-transform:uppercase;color:var(--or)} .scene .k small{display:block;font:11px Archivo;color:var(--mute);text-transform:none}
 .scene .f{display:flex;flex-wrap:wrap;gap:8px;align-items:center} .scene label{font-size:11px;color:var(--mute);display:flex;gap:4px;align-items:center}
 .scene textarea{width:100%;min-height:44px;font-family:"Noto Kufi Arabic";direction:rtl}
@@ -83,6 +85,13 @@ dialog::backdrop{background:rgba(0,0,0,.6)} .grp{font-size:14px;color:var(--mute
   <div id="sessions"></div>
   <p class="hint" style="margin-top:20px" id="root"></p>
 </aside>
+<dialog id="pdlg" style="width:min(980px,96vw)"><div class="row" style="justify-content:space-between"><h2 id="ptitle" style="margin:0">Clip</h2><button class="ghost sm" onclick="$('pdlg').close()">Close</button></div>
+  <video id="pv" controls preload="auto" style="width:100%;max-height:60vh;background:#000;border-radius:8px;margin-top:10px"></video>
+  <div class="row" style="margin-top:10px"><span class="pill" id="ptime">0.0 s</span>
+    <button class="ghost sm" onclick="pstep(-1)">◀ frame</button><button class="ghost sm" onclick="pstep(1)">frame ▶</button><button class="ghost sm" onclick="pstep(-30)">−1 s</button><button class="ghost sm" onclick="pstep(30)">+1 s</button>
+    <span style="flex:1"></span><button class="sm" id="pset" onclick="psetIn()">set in-point here</button></div>
+  <p class="hint">← → one frame · shift+← → one second · space play/pause · Enter = set in-point for the selected scene</p>
+</dialog>
 <dialog id="newdlg"><h2>New session</h2>
   <div id="pulselist"></div>
   <div class="row" style="margin-top:10px"><button class="ghost sm" onclick="loadPulse(true)">Refresh</button><span style="flex:1"></span><label class="hint">Length <input type="number" id="mbudget" value="60"> s</label></div>
@@ -165,7 +174,7 @@ function render(){
       ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}?${c.duration}">`:''}
       <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
       <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span>${used.length?`<span class="u">${used.join(', ')}</span>`:'<span>unused</span>'}
-        <span class="x"><button class="ghost" onclick="event.stopPropagation();replaceFile('raw','${esc(c.file)}')" title="upload another file under this name">replace</button><button class="ghost" onclick="event.stopPropagation();deleteFile('raw','${esc(c.file)}',${used.length})" title="delete from raw/">✕</button></span></div></div>`}).join('')}
+        <span class="x"><button class="ghost" onclick="event.stopPropagation();openPlayer('${esc(c.file)}',0)" title="play / scrub (480p proxy)" ${c.proxy?'':'disabled'}>▶ scrub</button><button class="ghost" onclick="event.stopPropagation();replaceFile('raw','${esc(c.file)}')" title="upload another file under this name">replace</button><button class="ghost" onclick="event.stopPropagation();deleteFile('raw','${esc(c.file)}',${used.length})" title="delete from raw/">✕</button></span></div></div>`}).join('')}
     ${!S.clips.length&&S.raw.length?'<p class="hint">files present — run <b>1 · Clips</b> to see contact sheets</p>':''}</div>
   </section>
 
@@ -227,6 +236,7 @@ function sceneRow(s,i,tl){
   const win=s.vo.windows?JSON.stringify(s.vo.windows):'';
   return `<div class="scene ${i===selScene?'on':''}" onclick="selScene=${i};render()">
     <div><div class="k">${esc(s.key)}<small>${t?`${t.start.toFixed(1)}–${t.end.toFixed(1)}s · vo ${t.vo_len}s`:'—'}</small></div>
+      ${s.clip&&S.raw.includes(s.clip)?`<img class="th" src="/api/s/${SID}/thumb?clip=${encodeURIComponent(s.clip)}&t=${(+s.in||0).toFixed(1)}" title="${esc(s.clip)} @ ${s.in}s — click to scrub" onclick="event.stopPropagation();selScene=${i};openPlayer('${esc(s.clip)}',${+s.in||0})">`:'<div class="th nope">no clip</div>'}
       <div class="row" style="margin-top:6px"><button class="ghost sm" onclick="event.stopPropagation();move(${i},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();move(${i},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();del(${i})">✕</button></div></div>
     <div>
       <div class="f">
@@ -265,6 +275,13 @@ function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
 let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
+let PCLIP=null;
+function openPlayer(file,t){const c=S.clips.find(x=>x.file===file); if(!c||!c.proxy){alert('No proxy for this clip yet — run 1 · Clips'); return}
+  PCLIP=file; const v=$('pv'); v.src=`/files/${SID}/build/${c.proxy}`; $('ptitle').textContent=file+(sc(selScene)?` → ${sc(selScene).key}`:''); $('pset').disabled=!sc(selScene);
+  v.onloadedmetadata=()=>{v.currentTime=t||0}; v.ontimeupdate=()=>{$('ptime').textContent=v.currentTime.toFixed(2)+' s'}; $('pdlg').showModal(); v.focus();}
+function pstep(fr){const v=$('pv'); v.pause(); v.currentTime=Math.max(0,v.currentTime+fr/30)}
+function psetIn(){const s=sc(selScene); if(!s) return; s.clip=PCLIP; s.in=Math.round($('pv').currentTime*10)/10; save(true); $('pdlg').close()}
+document.addEventListener('keydown',e=>{if(!$('pdlg').open) return; if(e.key==='ArrowLeft'){pstep(e.shiftKey?-30:-1);e.preventDefault()} else if(e.key==='ArrowRight'){pstep(e.shiftKey?30:1);e.preventDefault()} else if(e.key===' '){const v=$('pv'); v.paused?v.play():v.pause(); e.preventDefault()} else if(e.key==='Enter'){psetIn()}});
 let MUSIC=[], MUSIC_DIR='';
 async function loadMusic(){try{const r=await api('/api/music'); MUSIC=r.files; MUSIC_DIR=r.dir}catch(e){}}
 function pickMusic(){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept='audio/*,.mp3,.m4a,.wav'; i.onchange=async()=>{const fd=new FormData(); for(const f of i.files) fd.append('files',f); const r=await fetch('/api/music/upload',{method:'POST',body:fd}); if(!r.ok) alert(await r.text()); await loadMusic(); render()}; i.click()}
