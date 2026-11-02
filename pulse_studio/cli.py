@@ -101,6 +101,8 @@ def cmd_script(a):
     proj = project.load(a.dir); d = datamod.fetch(a.dir, proj)
     lines = scriptmod.write(a.dir, proj, d, force=a.force); project.save(a.dir, proj)
     for i, l in enumerate(lines, 1): print(f"{i:2d}. {l['key']:11s} {l['text']}")
+    sg = tlmod.suggest_budget(tlmod.estimate_speech([l["text"] for l in lines]), len(lines)); proj["vo"]["suggested_s"] = sg["best"]; project.save(a.dir, proj)
+    print("\n" + tlmod.describe_budget(sg) + f"  (current length {proj['vo'].get('budget_s', 60)}s)")
     print(f"\nsaved to {a.dir}/build/script.md and into project.json (scene.script / caption / caption_en, vo.dialect_hint)\nrecord it as ONE file → vo/, then: pulse-reel stt {a.dir}")
 
 def cmd_preview(a):

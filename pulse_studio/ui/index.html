@@ -153,6 +153,7 @@ function render(){
   <div class="top"><h1>${esc(p.name)}</h1><div class="meta">${esc(p.session.date)} · ${esc(p.session.type)} · ${p.vo.budget_s}s · ${esc(p.identity)}</div>
     <span style="flex:1"></span>
     <label class="hint">Length <input type="number" value="${p.vo.budget_s}" onchange="p().vo.budget_s=+this.value;save()"> s</label>
+    ${(()=>{const sg=tl?.suggest||(p.vo.suggested_s?{best:p.vo.suggested_s}:null); if(!sg) return ''; const diff=sg.best!==+p.vo.budget_s; return `<span class="pill ${diff?'warn':''}" title="${sg.options?sg.options.map(o=>o.len+'s ×'+o.tempo+(o.fits_story?' Story':' Reel')).join(' · '):''}${sg.cut_for_story?' — for 60 s drop ~'+sg.cut_for_story+'s of speech':''}">suggested ${sg.best}s${sg.speech?' · speech '+sg.speech+'s':''}</span>${diff?`<button class="ghost sm" onclick="p().vo.budget_s=${sg.best};save()">use</button>`:''}`})()}
     <label class="hint">Data <select onchange="p().session.source=this.value;save()"><option ${p.session.source==='pulse'?'selected':''}>pulse</option><option ${p.session.source==='file'?'selected':''}>file</option></select></label>
     <label class="hint">preset <select id="presel"><option value="">—</option>${(PRESETS||[]).map(n=>`<option>${esc(n)}</option>`).join('')}</select></label>
     <span class="row" style="gap:4px"><button class="ghost sm" onclick="applyPreset()">Apply</button><button class="ghost sm" onclick="savePreset()">Save as…</button><button class="ghost sm" onclick="deletePreset()" title="delete the selected preset">Delete</button></span>
