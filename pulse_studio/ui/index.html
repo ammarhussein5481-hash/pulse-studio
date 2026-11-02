@@ -44,7 +44,8 @@ input[type=number]{width:74px}
 .clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .clip{background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer}
 .clip:hover{border-color:var(--or)} .clip img{width:100%;display:block;aspect-ratio:8/1.4;object-fit:cover}
-.clip .cap{padding:6px 8px;font-size:11px;display:flex;justify-content:space-between;color:var(--mute)} .clip .cap b{color:var(--bone)}
+.clip .cap{padding:6px 8px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;color:var(--mute)} .clip .cap b{color:var(--bone)}
+.clip .cap .u{color:var(--or);font-weight:600} .clip .cap .x{margin-left:auto;display:flex;gap:4px} .clip .cap button{padding:2px 6px;font-size:10px}
 .motion{display:flex;gap:1px;height:14px;padding:0 8px 6px} .motion i{flex:1;background:var(--or);opacity:.7;align-self:flex-end}
 table{border-collapse:collapse;width:100%} th{font:600 10px Archivo;letter-spacing:.15em;text-transform:uppercase;color:var(--mute);text-align:left;padding:4px 6px}
 td{padding:4px 6px;border-top:1px solid var(--line);vertical-align:top}
@@ -160,10 +161,11 @@ function render(){
   <div class="grid2">
   <section><h2>Clips <span class="pill">${S.raw.length} in raw/</span></h2>
     <div class="drop" id="dropraw" onclick="pick('raw')">drop camera files here (or click) · .mov .mp4</div>
-    <div class="clips" style="margin-top:12px">${S.clips.map(c=>`<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
-      ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}">`:''}
+    <div class="clips" style="margin-top:12px">${S.clips.map(c=>{const used=p.scenes.filter(s=>s.clip===c.file).map(s=>s.key); return `<div class="clip" onclick="useClip('${esc(c.file)}')" title="use in selected scene">
+      ${c.sheet?`<img src="/files/${SID}/build/${c.sheet}?${c.duration}">`:''}
       <div class="motion">${(c.motion||[]).slice(0,60).map(m=>`<i style="height:${Math.min(100,m*4)}%"></i>`).join('')}</div>
-      <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span></div></div>`).join('')}
+      <div class="cap"><b>${esc(c.file)}</b><span>${(c.created||'').slice(11,19)} · ${c.duration}s · ${c.vertical?'V':'H'}</span>${used.length?`<span class="u">${used.join(', ')}</span>`:'<span>unused</span>'}
+        <span class="x"><button class="ghost" onclick="event.stopPropagation();replaceFile('raw','${esc(c.file)}')" title="upload another file under this name">replace</button><button class="ghost" onclick="event.stopPropagation();deleteFile('raw','${esc(c.file)}',${used.length})" title="delete from raw/">✕</button></span></div></div>`}).join('')}
     ${!S.clips.length&&S.raw.length?'<p class="hint">files present — run <b>1 · Clips</b> to see contact sheets</p>':''}</div>
   </section>
 
@@ -171,7 +173,7 @@ function render(){
     <div class="row"><div class="drop" style="flex:1" onclick="pick('vo')">drop voice recordings (.m4a) or click</div>
       <input id="recname" value="main" style="width:90px" title="main = the full script; other names = extra files (warmup…)">
       <button id="recbtn" onclick="toggleRec()">● Record</button></div>
-    <p class="hint">${S.vo.map(f=>`<span class="pill">${esc(f)}</span> `).join('')} main = <b>${esc(p.vo.main)}</b>${Object.entries(p.vo.extra||{}).map(([k,v])=>` · ${k} = ${esc(v)}`).join('')}</p>
+    <p class="hint">${S.vo.map(f=>`<span class="pill">${esc(f)} <a style="cursor:pointer" title="replace" onclick="replaceFile('vo','${esc(f)}')">⟳</a> <a style="cursor:pointer" title="delete" onclick="deleteFile('vo','${esc(f)}',0)">✕</a></span> `).join('')} main = <b>${esc(p.vo.main)}</b>${Object.entries(p.vo.extra||{}).map(([k,v])=>` · ${k} = ${esc(v)}`).join('')}</p>
     <div class="row"><label class="hint">Dialect hint <input value="${esc(p.vo.dialect_hint)}" style="width:260px" onchange="p().vo.dialect_hint=this.value;save()"></label></div>
     ${Object.entries(S.stt).map(([name,segs])=>`<h3 style="margin-top:12px;font-size:14px;color:var(--mute)">${esc(name)} — click a word for the start, a second for the end of the selected scene</h3>
       <div class="words">${segs.flatMap(s=>s.words).map(w=>`<span class="w ${w[3]<0.5?'lo':''} ${inSel(name,w[1])?'sel':''}" onclick="pickWord('${name}',${w[1]},${w[2]})"><small>${w[1]}</small>${esc(w[0])}</span>`).join(' ')}</div>`).join('')}
@@ -190,11 +192,17 @@ function render(){
 
   <section><h2>Audio</h2><div class="row">
     <label class="hint"><input type="checkbox" ${p.audio.music?'checked':''} onchange="p().audio.music=this.checked;save()"> music</label>
+    <label class="hint">track <select onchange="p().audio.music_file=this.value;save()"><option value="generated" ${(p.audio.music_file||'generated')==='generated'?'selected':''}>generated (code)</option>${(MUSIC||[]).map(m=>`<option ${p.audio.music_file===m.file?'selected':''}>${esc(m.file)}</option>`).join('')}</select></label>
+    <label class="hint">start at <input type="number" step="1" value="${p.audio.music_in||0}" onchange="p().audio.music_in=+this.value;save()"> s</label>
+    ${p.audio.music_file&&p.audio.music_file!=='generated'?`<audio controls preload="none" src="/music/${encodeURIComponent(p.audio.music_file)}" style="height:28px"></audio>`:''}
+    </div><div class="row" style="margin-top:8px">
     <label class="hint">music dB <input type="number" value="${p.audio.music_db}" onchange="p().audio.music_db=+this.value;save()"></label>
     <label class="hint"><input type="checkbox" ${p.audio.sfx?'checked':''} onchange="p().audio.sfx=this.checked;save()"> sfx</label>
     <label class="hint">sfx dB <input type="number" value="${p.audio.sfx_db}" onchange="p().audio.sfx_db=+this.value;save()"></label>
     <label class="hint">ambience dB <input type="number" value="${p.audio.amb_db}" onchange="p().audio.amb_db=+this.value;save()"></label>
     <span class="hint">after changing: <b>Remix audio</b> (3 min) instead of a full build</span></div>
+    <h3 style="margin-top:14px;font-size:14px;color:var(--mute)">MUSIC LIBRARY <span class="pill">${(MUSIC||[]).length}</span> <button class="ghost sm" onclick="pickMusic()">+ add files</button> <span class="hint">shared by all sessions · ${esc(MUSIC_DIR||'')}</span></h3>
+    <p class="hint">${(MUSIC||[]).map(m=>`<span class="pill">${esc(m.file)} · ${m.duration??'?'}s <a style="cursor:pointer" title="replace" onclick="replaceMusic('${esc(m.file)}')">⟳</a> <a style="cursor:pointer" title="delete" onclick="deleteMusic('${esc(m.file)}')">✕</a></span> `).join('')||'no files yet — add .mp3 / .m4a / .wav; the generated track stays available'}</p>
   </section>
 
   <section><h2>Stills <span class="pill">${S.stills.length}</span></h2>
@@ -257,9 +265,19 @@ function pickWord(name,s,e){const v=sc(selScene)?.vo; if(!v) return;
 let saveT; async function save(now){ render(); clearTimeout(saveT); const go=async()=>{try{await api(`/api/s/${SID}/project`,J('PUT',S.project)); if(now) toast('saved')}catch(e){showLog('not saved: '+e.message)}}; now?await go():saveT=setTimeout(go,400)}
 function toast(m){$('logtitle').textContent=m}
 
+let MUSIC=[], MUSIC_DIR='';
+async function loadMusic(){try{const r=await api('/api/music'); MUSIC=r.files; MUSIC_DIR=r.dir}catch(e){}}
+function pickMusic(){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept='audio/*,.mp3,.m4a,.wav'; i.onchange=async()=>{const fd=new FormData(); for(const f of i.files) fd.append('files',f); const r=await fetch('/api/music/upload',{method:'POST',body:fd}); if(!r.ok) alert(await r.text()); await loadMusic(); render()}; i.click()}
+function replaceMusic(name){const i=document.createElement('input'); i.type='file'; i.accept='audio/*'; i.onchange=async()=>{const fd=new FormData(); fd.append('name',name); fd.append('file',i.files[0]); await fetch('/api/music/replace',{method:'POST',body:fd}); await loadMusic(); render()}; i.click()}
+async function deleteMusic(name){if(!confirm('Delete '+name+' from the music library?')) return; await api('/api/music/'+encodeURIComponent(name),{method:'DELETE'}); if(p().audio.music_file===name){p().audio.music_file='generated'; save()} await loadMusic(); render()}
+function replaceFile(kind,name){const i=document.createElement('input'); i.type='file'; i.accept=kind==='raw'?'video/*,.mov,.mp4':'audio/*,.m4a';
+  i.onchange=async()=>{if(!i.files[0]) return; const fd=new FormData(); fd.append('kind',kind); fd.append('name',name); fd.append('file',i.files[0]);
+    showLog(`replacing ${kind}/${name} …`); const r=await fetch(`/api/s/${SID}/replace`,{method:'POST',body:fd}); logLine(r.ok?`replaced ${name} — scenes using it will be recut on the next build${kind==='vo'?'; run 3 · Transcribe again':''}`:'replace failed: '+await r.text()); refresh()}; i.click()}
+async function deleteFile(kind,name,used){if(!confirm(`Delete ${kind}/${name}?${used?` It is used by ${used} scene(s) — they will need another clip.`:''}`)) return;
+  try{const r=await api(`/api/s/${SID}/file?kind=${kind}&name=${encodeURIComponent(name)}`,{method:'DELETE'}); if(r.orphaned_scenes?.length) alert('Pick a new clip for: '+r.orphaned_scenes.join(', ')); refresh()}catch(e){alert(e.message)}}
 function pick(kind){const i=document.createElement('input'); i.type='file'; i.multiple=true; i.accept=kind==='raw'?'video/*,.mov,.mp4':'audio/*,.m4a'; i.onchange=()=>upload(kind,i.files); i.click()}
 async function upload(kind,files){if(!files.length) return; const fd=new FormData(); fd.append('kind',kind); for(const f of files) fd.append('files',f);
-  showLog(`uploading ${files.length} file(s) to ${kind}/ …`); try{await fetch(`/api/s/${SID}/upload`,{method:'POST',body:fd}); logLine('uploaded'); await refresh()}catch(e){logLine('upload failed: '+e.message)}}
+  showLog(`uploading ${files.length} file(s) to ${kind}/ …`); try{await fetch(`/api/s/${SID}/upload`,{method:'POST',body:fd}); logLine('uploaded — contact sheets made'); await refresh()}catch(e){logLine('upload failed: '+e.message)}}
 
 async function toggleRec(){
   if(rec){rec.stop(); return}
@@ -297,7 +315,7 @@ function showLog(t){$('log').classList.add('open'); if(t) $('logtitle').textCont
 function logLine(l){const pre=$('logpre'); pre.textContent+=l+'\n'; pre.scrollTop=pre.scrollHeight}
 function play(f){$('player').src=`/files/${SID}/out/${f}`; $('player').play()}
 
-loadSessions().then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) openSession(r.sessions[0].id)});
+loadMusic().then(loadSessions).then(async()=>{const r=await api('/api/sessions'); if(r.sessions[0]) openSession(r.sessions[0].id)});
 </script>
 </body>
 </html>

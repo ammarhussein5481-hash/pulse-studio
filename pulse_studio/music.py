@@ -7,6 +7,27 @@ BEAT = 0.5
 def generate(VER, OUT):
     _generate(float(VER), str(OUT))
 
+def library_dir():
+    from .config import HOME
+    d = HOME / "music"; d.mkdir(parents=True, exist_ok=True); return d
+
+def prepare(proj: dict, tl: dict, out):
+    """build/music.wav for the mix: a file from the library (audio.music_file, trimmed from audio.music_in, faded at the end)
+    or the generated track when music_file is empty/"generated"."""
+    import subprocess
+    from pathlib import Path
+    from .config import ffmpeg
+    a = proj.get("audio", {}); f = a.get("music_file")
+    if not f or f == "generated":
+        return generate(tl["scenes"][-1]["start"], out)
+    src = library_dir() / Path(f).name
+    if not src.exists():
+        raise SystemExit(f"music file {f} not in the library ({library_dir()}) — upload it in the web app or copy it there")
+    T = float(tl["budget"]); st = float(a.get("music_in", 0) or 0)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(st), "-i", str(src), "-t", str(T), "-ac", "2", "-ar", "48000",
+                    "-af", f"apad=whole_dur={T},afade=t=in:d=0.5,afade=t=out:st={T - 2.5:.2f}:d=2.5", str(out)], check=True)
+    return out
+
 def _generate(VER, OUT):
     global L, R
     L = np.zeros(n); R = np.zeros(n)

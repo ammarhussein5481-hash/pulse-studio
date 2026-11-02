@@ -89,7 +89,7 @@ Garmin doesn't record exercise sets unless they're logged on the watch, so stren
 
 Effects per scene: `"fx": ["zoomcut","storm","glass","chat"]` (snap zoom on the cut · facts flash before the title · frosted pane behind the title · caption as chat bubbles), `"inset": {"file":"assets/erg.png","label":"ERGDATA","at":1.2}` (b-roll picture-in-picture), `"phone": {"file":"assets/pulse.png"}` (phone mockup), and on the closing `"style": "checklist"` (stations tick off with their times). All are HTML/CSS in the overlay or one ffmpeg filter — no extra tools.
 
-`crop`: `auto` (centre 9:16 from a landscape source), `full` (vertical source as is), or `w:h:x:y` for a punch-in. `vo.windows: [[a,b],[c,d]]` skips filler words. `title` overrides the on-screen kicker/name/number/sub-line. `audio.music_db`, `sfx_db`, `amb_db` set the mix.
+`crop`: `auto` (centre 9:16 from a landscape source), `full` (vertical source as is), or `w:h:x:y` for a punch-in. `vo.windows: [[a,b],[c,d]]` skips filler words. `title` overrides the on-screen kicker/name/number/sub-line. `audio.music_db`, `sfx_db`, `amb_db` set the mix; `audio.music_file` picks a track from your music library (`~/.pulse-studio/music/`, managed in the web app — add / replace / delete) or `generated` for the code-made one, `audio.music_in` the start offset.
 
 ## Speed on an i5-7300U (4 threads, no GPU)
 Whisper large-v3-turbo on a 90 s voice-over (first run downloads the 1.6 GB model) ≈ 3 min · base cut (4K, VAAPI) ≈ 2 min · 1800 overlay frames ≈ 5 min · final encode ≈ 3 min.

@@ -75,7 +75,7 @@ def cmd_build(a):
     print("[audio] vo / sfx / music …")
     mix.vo_track(a.dir, tl, b / "vo_full.wav")
     if proj["audio"].get("sfx", True): sfx.generate(tl, b / "sfx.wav", tl["budget"], proj=proj)
-    if proj["audio"].get("music", True): music.generate(tl["scenes"][-1]["start"], b / "music.wav")
+    if proj["audio"].get("music", True): music.prepare(proj, tl, b / "music.wav")
     v = _latest_version(outdir, proj["name"]) + 1; out = outdir / f"{proj['name']}-v{v}.mp4"
     print(f"[mix] → {out.name}"); mix.composite(a.dir, proj, tl, out)
     info = mix.verify(out); mix.contact_sheet(out, outdir / f"{proj['name']}-v{v}.jpg")
@@ -86,7 +86,7 @@ def cmd_audio(a):
     if not (b / "frames").exists(): raise SystemExit("no frames yet — run: pulse-reel build <dir>")
     mix.vo_track(a.dir, tl, b / "vo_full.wav")
     if proj["audio"].get("sfx", True): sfx.generate(tl, b / "sfx.wav", tl["budget"], proj=proj)
-    if proj["audio"].get("music", True) and not (b / "music.wav").exists(): music.generate(tl["scenes"][-1]["start"], b / "music.wav")
+    if proj["audio"].get("music", True): music.prepare(proj, tl, b / "music.wav")
     v = _latest_version(outdir, proj["name"]) + 1; out = outdir / f"{proj['name']}-v{v}.mp4"
     mix.composite(a.dir, proj, tl, out); print(f"done: {out} {mix.verify(out)}")
 

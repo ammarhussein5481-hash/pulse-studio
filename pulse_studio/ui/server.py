@@ -7,7 +7,7 @@ import json, os, re, shutil, subprocess, sys, threading, time, uuid, webbrowser
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from .. import project, config, pulse, data as datamod
+from .. import project, config, ingest, music, pulse, data as datamod
 from ..config import ffmpeg
 
 HERE = Path(__file__).resolve().parent
@@ -132,6 +132,43 @@ async def put_project(sid: str, req: Request):
         raise HTTPException(409, "the assistant is editing this project — wait for it to finish")
     project.save(d, pj); return {"ok": True}
 
+def _refresh_clip(d: Path, name: str, remove: bool = False):
+    """Keep build/clips.json + sheet in step with raw/ without a full ingest; drop cut scenes that used the clip."""
+    b = d / "build"; b.mkdir(exist_ok=True); cj = b / "clips.json"
+    clips = [c for c in (_jload(cj) or []) if c["file"] != name]
+    sheet = b / f"sheet_{Path(name).stem}.jpg"
+    if remove:
+        sheet.unlink(missing_ok=True)
+    else:
+        src = d / "raw" / name
+        try:
+            pr = config.probe(src)
+            c = {"file": name, "created": pr["created"], "duration": round(pr["duration"], 2), "width": pr["width"], "height": pr["height"],
+                 "vertical": (pr["width"] or 0) < (pr["height"] or 1)}
+            c["sheet"] = ingest.contact_sheet(src, sheet, c["duration"]); c["motion"] = ingest.motion_profile(src); clips.append(c)
+        except Exception as e:
+            print("refresh_clip:", e)
+    clips.sort(key=lambda c: (c["created"] or "", c["file"])); cj.write_text(json.dumps(clips, indent=1), encoding="utf-8")
+    # scenes cut from this clip are stale: delete their t<i>.mp4 so `build` (even with --only) recuts them
+    pj = project.load(d); tl = _jload(b / "timeline.json") or {}
+    for i, sc in enumerate(tl.get("scenes", []), 1):
+        s = next((x for x in pj["scenes"] if x["key"] == sc["key"]), None)
+        if s and s.get("clip") == name:
+            for ext in (".mp4", ".m4a"): (b / f"t{i}{ext}").unlink(missing_ok=True)
+
+def _drop_vo_derived(d: Path, name: str):
+    pj = project.load(d); rel = f"vo/{name}"; stem = Path(name).stem
+    keys = [k for k, v in {"main": pj["vo"]["main"], **pj["vo"].get("extra", {})}.items() if v == rel]
+    for k in keys:
+        for f in ((d / "build" / f"stt_{k}.json"), (d / "build" / f"vo_{k}.wav")): f.unlink(missing_ok=True)
+    return keys
+
+async def _save_upload(f: UploadFile, dest: Path):
+    tmp = dest.with_name("." + dest.name + ".part")
+    with tmp.open("wb") as w:
+        while chunk := await f.read(1 << 20): w.write(chunk)
+    tmp.replace(dest)
+
 @app.post("/api/s/{sid}/upload")
 async def upload(sid: str, kind: str = Form(...), files: list[UploadFile] = File(...)):
     d = _sid(sid); sub = {"raw": "raw", "vo": "vo"}.get(kind)
@@ -141,10 +178,21 @@ async def upload(sid: str, kind: str = Form(...), files: list[UploadFile] = File
         name = Path(f.filename or "file").name
         if not re.fullmatch(r"[\w .()-]+", name): raise HTTPException(400, f"bad name {name}")
         dest = d / sub / name
-        with dest.open("wb") as w:
-            while chunk := await f.read(1 << 20): w.write(chunk)
-        names.append(name)
+        await _save_upload(f, dest); names.append(name)
+        if sub == "raw": _refresh_clip(d, name)
+        else: _drop_vo_derived(d, name)
     return {"saved": names}
+
+@app.post("/api/s/{sid}/replace")
+async def replace_file(sid: str, kind: str = Form(...), name: str = Form(...), file: UploadFile = File(...)):
+    """Swap a clip or voice file in place under the SAME name, so every scene that references it keeps working."""
+    d = _sid(sid); sub = {"raw": "raw", "vo": "vo"}.get(kind); name = Path(name).name
+    if not sub or not (d / sub / name).exists(): raise HTTPException(404, f"{kind}/{name} not found")
+    if CURRENT and CURRENT.running: raise HTTPException(409, "a job is running — stop it first")
+    await _save_upload(file, d / sub / name)
+    if sub == "raw": _refresh_clip(d, name)
+    else: _drop_vo_derived(d, name)
+    return {"replaced": name}
 
 @app.post("/api/s/{sid}/record")
 async def record(sid: str, name: str = Form(...), file: UploadFile = File(...)):
@@ -167,7 +215,55 @@ def delete_file(sid: str, kind: str, name: str):
     d = _sid(sid); sub = {"raw": "raw", "vo": "vo"}.get(kind)
     p = d / sub / Path(name).name
     if not sub or not p.exists(): raise HTTPException(404)
+    if CURRENT and CURRENT.running: raise HTTPException(409, "a job is running — stop it first")
+    p.unlink()
+    if sub == "raw":
+        _refresh_clip(d, p.name, remove=True)
+        pj = project.load(d); used = [s["key"] for s in pj["scenes"] if s.get("clip") == p.name]
+        return {"ok": True, "orphaned_scenes": used}
+    keys = _drop_vo_derived(d, p.name); pj = project.load(d)
+    for k in keys:
+        if k != "main": pj["vo"]["extra"].pop(k, None)
+    project.save(d, pj); return {"ok": True}
+
+MUSIC_EXT = {".mp3", ".m4a", ".wav", ".aac", ".ogg", ".flac", ".opus"}
+
+@app.get("/api/music")
+def music_list():
+    d = music.library_dir(); out = []
+    for f in sorted(d.iterdir()):
+        if f.suffix.lower() in MUSIC_EXT:
+            try: dur = round(config.probe(f)["duration"], 1)
+            except Exception: dur = None
+            out.append({"file": f.name, "duration": dur, "mb": round(f.stat().st_size / 1e6, 1)})
+    return {"dir": str(d), "files": out}
+
+@app.post("/api/music/upload")
+async def music_upload(files: list[UploadFile] = File(...)):
+    names = []
+    for f in files:
+        name = Path(f.filename or "track").name
+        if not re.fullmatch(r"[\w .()&-]+", name) or Path(name).suffix.lower() not in MUSIC_EXT: raise HTTPException(400, f"bad name/type {name}")
+        await _save_upload(f, music.library_dir() / name); names.append(name)
+    return {"saved": names}
+
+@app.post("/api/music/replace")
+async def music_replace(name: str = Form(...), file: UploadFile = File(...)):
+    p = music.library_dir() / Path(name).name
+    if not p.exists(): raise HTTPException(404)
+    await _save_upload(file, p); return {"replaced": p.name}
+
+@app.delete("/api/music/{name}")
+def music_delete(name: str):
+    p = music.library_dir() / Path(name).name
+    if not p.exists(): raise HTTPException(404)
     p.unlink(); return {"ok": True}
+
+@app.get("/music/{name}")
+def music_file(name: str):
+    p = music.library_dir() / Path(name).name
+    if not p.exists(): raise HTTPException(404)
+    return FileResponse(p)
 
 @app.delete("/api/s/{sid}")
 def delete_session(sid: str):

@@ -25,6 +25,8 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 ## Revisions (what Ammar usually asks)
 - "X shot starts from here" (screenshot of the player scrubber): read the scrubber fraction × clip duration → set that scene's `in`; or match the frame with a quick contact sheet around the guess. Rebuild with `--only <key>`.
 - "Use this video for X": set `clip`; `crop: "full"` if he wants the whole frame even when he's small.
+- "Use my music / this track": `audio.music_file` = a file name in the music library (`~/.pulse-studio/music/`, shared by all sessions; the web app uploads there), `audio.music_in` = seconds to start from; `"generated"` = the code-made track. Then `pulse-reel audio`.
+- "Replace/delete a clip": the web app does it in place (same file name keeps the scenes valid, stale cuts are dropped); from the CLI just overwrite the file in `raw/` and rebuild with `--only` the scenes that use it.
 - "Raise/lower the music/SFX": `audio.music_db` / `sfx_db` ±5 then `pulse-reel audio <dir>` (audio-only remix, ~3 min).
 - "Mute the clip sound at the start": that scene `amb_db: -90`. Keep wall-ball / sled scenes at −2 dB when he likes the real sound.
 - Caption wording: edit `caption`; the words re-map to the transcript timings automatically.
