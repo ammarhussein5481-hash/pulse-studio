@@ -183,8 +183,9 @@ def pre(dir: Path) -> list[dict]:
 
 # ---------------------------------------------------------------- stills gates
 def stills(dir: Path) -> list[dict]:
-    """On transparent overlay frames: text inside the safe zones, caption height; contrast against the base video when it exists."""
+    """On transparent overlay frames: text inside the safe zones, caption height; contrast and faces against the base video when it exists."""
     dir, b, proj, data, tl = _load(dir); out = []
+    OPT = {sc["key"]: sc for sc in proj["scenes"]}
     if not tl: return [R(6, "safe zones", "warn", "no timeline")]
     try:
         import numpy as np
@@ -215,6 +216,39 @@ def stills(dir: Path) -> list[dict]:
             if r.returncode == 0 and r.stdout:
                 lum = np.frombuffer(r.stdout, dtype=np.uint8).mean()
                 if lum > 165: bright.append(f"{s['key']} ({int(lum)})")
+    # 14 a face / the athlete under the caption or the title block — YuNet (OpenCV DNN, ~230 KB model from setup.sh), Haar as fallback
+    faces_hit = []
+    if base.exists():
+        try:
+            import cv2
+            from .config import HOME
+            yn = HOME / "models" / "yunet.onnx"; det = None; casc = []
+            if yn.exists():
+                try: det = cv2.FaceDetectorYN.create(str(yn), "", (540, 960), 0.55)
+                except Exception: det = None
+            if det is None:
+                casc = [c for c in (cv2.CascadeClassifier(cv2.data.haarcascades + n) for n in ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml", "haarcascade_upperbody.xml")) if not c.empty()]
+                if not casc: raise ImportError("no face model: run ./setup.sh (yunet.onnx) or install opencv-python-headless<5")
+            for s, t in zip(tl["scenes"], times):
+                r = subprocess.run([ffmpeg(), "-nostdin", "-v", "error", "-ss", str(t), "-i", str(base), "-frames:v", "1", "-vf", "scale=540:960,format=bgr24", "-f", "rawvideo", "-"], capture_output=True)
+                if r.returncode or not r.stdout: continue
+                fr = np.frombuffer(r.stdout, dtype=np.uint8).reshape(960, 540, 3); boxes = []
+                if det is not None:
+                    _, faces = det.detect(fr)
+                    boxes = [] if faces is None else [tuple(int(v * 2) for v in f[:4]) for f in faces]
+                else:
+                    g = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
+                    for c in casc:
+                        d_ = c.detectMultiScale(g, 1.1, 5, minSize=(36, 36)); boxes += [tuple(int(v * 2) for v in bx) for bx in (d_ if len(d_) else [])]
+                o = OPT.get(s["key"], {})
+                cy = int(o.get("cap_y") or 1400); zones = {"caption": (cy - 20, min(H - 300, cy + 220)), "title": (300, 900)}
+                for (x, y, w_, h_) in boxes:
+                    if h_ < 80: continue   # tiny / far away: text over it is fine
+                    for zn, (za, zb) in zones.items():
+                        if y < zb and y + h_ > za: faces_hit.append(f"{s['key']} ({zn}, face y={y}–{y + h_})"); break
+        except ImportError as e:
+            faces_hit = None; note = str(e)
+    out.append(R(14, "no face under the caption or title", "warn" if faces_hit else "pass" if faces_hit is not None else "warn", "; ".join(faces_hit[:5]) if faces_hit else (note if faces_hit is None else "")))
     out.append(R(6, "overlay inside the Instagram safe zones", "fail" if top_v or bot_v else "pass", "; ".join([f"top: {', '.join(top_v)}" if top_v else "", f"bottom: {', '.join(bot_v)}" if bot_v else ""]).strip("; ")))
     out.append(R(7, "caption ≤ 3 lines", "warn" if tall else "pass", ", ".join(tall)))
     out.append(R(8, "caption readable against the video (background not too bright)", "warn" if bright else "pass", ("bright behind the caption: " + ", ".join(bright)) if bright else ("" if base.exists() else "no base video yet — checked after build")))
@@ -264,6 +298,17 @@ def post(dir: Path, out_mp4: Path) -> list[dict]:
     r = subprocess.run([ffmpeg(), "-nostdin", "-v", "info", "-i", str(out_mp4), "-vf", "blackdetect=d=0.3:pic_th=0.98,freezedetect=n=-60dB:d=1.2", "-an", "-f", "null", "-"], capture_output=True, text=True).stderr
     blk = re.findall(r"black_start:([\d.]+)", r); frz = re.findall(r"freeze_start: ([\d.]+)", r)
     res.append(R(12, "no black or frozen frames", "fail" if blk else "warn" if frz else "pass", "; ".join([f"black at {', '.join(x[:4] for x in blk)}" if blk else "", f"frozen at {', '.join(x[:5] for x in frz)}" if frz else ""]).strip("; ")))
+    # SFX density (B Studio's rule: ≤ 20 hits / minute, nothing stacked closer than 150 ms); ticks are texture and count per burst
+    ev = b / "sfx_events.json"
+    if ev.exists() and proj["audio"].get("sfx", True):
+        E = json.loads(ev.read_text()); hits = sorted(t for t, k, g in E if k != "tick"); bursts = []
+        for t, k, g in sorted(E):
+            if k == "tick" and (not bursts or t - bursts[-1] > 0.4): bursts.append(t)
+        allh = sorted(hits + bursts); per_min = len(allh) / max(1.0, dur / 60); w = []
+        if per_min > 20: w.append(f"{per_min:.0f} hits/min (> 20)")
+        close = sum(1 for a_, b_ in zip(hits, hits[1:]) if 0 < b_ - a_ < 0.15)
+        if close > 3: w.append(f"{close} hits closer than 150 ms")
+        res.append(R(15, "SFX ≤ 20 hits/min, not stacked", "warn" if w else "pass", "; ".join(w) or f"{per_min:.0f}/min"))
     # cut rhythm
     if tl:
         short = [f"{s['key']} {s['end'] - s['start']:.1f}s" for s in tl["scenes"] if s["end"] - s["start"] < 1.5]

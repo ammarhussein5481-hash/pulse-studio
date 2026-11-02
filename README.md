@@ -67,7 +67,7 @@ pulse-reel match  sessions/2026-11-08-hyrox     # script ↔ recording: voice wi
 #  → edit project.json: one scene per station (clip, in-point, VO word window, corrected caption)
 pulse-reel timeline sessions/2026-11-08-hyrox   # timing + tempo check
 pulse-reel stills   sessions/2026-11-08-hyrox   # overlay QA stills
-pulse-reel check    sessions/2026-11-08-hyrox   # 13 quality gates (numbers vs data, media, voice, safe zones, loudness, black frames…)
+pulse-reel check    sessions/2026-11-08-hyrox   # 15 quality gates (numbers vs data, media, voice, safe zones, face under text, loudness, black frames, SFX density…)
 pulse-reel build    sessions/2026-11-08-hyrox   # ~12 min → out/<name>-v1.mp4 + contact sheet; refuses on a failed pre-build gate
 pulse-reel audio    sessions/2026-11-08-hyrox   # remix only (after changing music/sfx levels)
 pulse-reel preview  sessions/2026-11-08-hyrox sled_push   # 3 s of one scene with overlay + voice, ~30 s

@@ -32,6 +32,7 @@ SCENE_TEMPLATE = {
     "fx": [],                 # effects: "zoomcut" (snap zoom-in on the cut), "storm" (headline storm before the title), "glass" (liquid-glass panel behind the title), "chat" (caption as chat bubbles)
     "inset": None,            # b-roll overlay: {"file": "assets/erg.png", "at": 1.0, "w": 300, "pos": [740, 980], "label": "ERGDATA"}
     "phone": None,            # phone mockup: {"file": "assets/pulse.png", "at": 0.8}
+    "cap_y": None,            # caption top in px (default from the layout); set it when a face sits under the caption
     "style": None,            # closing only: "checklist" — stations tick off one by one with their times
 }
 

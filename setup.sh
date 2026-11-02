@@ -13,6 +13,8 @@ echo "== python venv + package"
 echo "== fonts (@fontsource) + chrome-headless-shell"
 ( cd "$H" && [ -f package.json ] || echo '{"name":"pulse-studio-home","private":true}' > package.json; npm install --silent @fontsource/anton @fontsource/archivo @fontsource/noto-kufi-arabic >/dev/null )
 ( cd "$H" && npx --yes @puppeteer/browsers install chrome-headless-shell@stable --path "$H/browsers" | tail -1 )
+echo "== face model for the quality gates (YuNet, 230 KB)"
+mkdir -p "$H/models"; [ -s "$H/models/yunet.onnx" ] || curl -sL -o "$H/models/yunet.onnx" "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" || echo "  (could not download yunet.onnx — gate 14 falls back to Haar)"
 echo "== whisper model (large-v3-turbo, ~1.6 GB, cached in ~/.cache/huggingface) — downloaded on first transcription"
 mkdir -p "$HOME/.local/bin"; ln -sf "$H/venv/bin/pulse-reel" "$HOME/.local/bin/pulse-reel"
 echo

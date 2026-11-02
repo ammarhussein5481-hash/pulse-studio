@@ -220,6 +220,7 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   if(fx.has("chat")){ const bubs=[]; let cur=[]; cw.forEach((w,i)=>{cur.push(i); if(/[.،؟!]$/.test(w)||i===cw.length-1){bubs.push(cur);cur=[]}});
     $("cap").innerHTML=bubs.map((ix,k)=>{const j=nt===mc?ix[0]:Math.round(ix[0]*(nt-1)/Math.max(1,mc-1)); return `<div class="bub ${k%2?"me":""}" data-s="${tw[Math.min(j,nt-1)][1]}">${ix.map(i=>cw[i]).join(" ")}</div>`;}).join(""); }
   $("capen").textContent=o.en||"";
+  if(o.cap_y){$("cap").style.top=(+o.cap_y)+"px"; $("capen").style.top=(+o.cap_y+140)+"px";} else {$("cap").style.top=""; $("capen").style.top="";}   // per-scene caption position (face under the caption)
   // b-roll inset + phone mockup
   const ins=$("inset"); ins.style.opacity=0; if(o.inset){ins.querySelector("img").src=o.inset.file; ins.querySelector(".l").textContent=o.inset.label||""; ins.style.width=(o.inset.w||300)+"px"; const [x,y]=o.inset.pos||[740,980]; ins.style.left=x+"px"; ins.style.top=y+"px";}
   const ph=$("phone"); ph.style.opacity=0; if(o.phone){ph.querySelector("img").src=o.phone.file;}
