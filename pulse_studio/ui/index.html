@@ -227,6 +227,7 @@ function render(){
 
   <section><h2>Scenes <span class="pill">${p.scenes.length}</span> <button class="ghost sm" onclick="addScene()">+ add</button> <button class="sm" onclick="save(true)">Save project.json</button></h2>
     <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words. fx: <b>zoomcut</b> snap zoom on the cut · <b>pullback</b> start on a detail (focus x,y) and pull back to the full shot · <b>storm</b> facts flash before the title · <b>glass</b> frosted pane behind the title · <b>chat</b> caption as chat bubbles. Images for inset/phone go in the session's <code>assets/</code> folder.</p>
+    <p class="hint"><button class="ghost sm" onclick="run('fxtest')" title="renders a grid clip through zoomcut / pullback / glass / photo on this laptop and prints OK or FAIL per effect">Test fx on this laptop</button> → <a href="/files/${SID}/build/fxtest.jpg?${Date.now()}" target="_blank">fxtest.jpg</a> (each row must change across the 4 frames except <i>none</i> and <i>glass</i>). <b>storm</b>, <b>chat</b>, <b>inset</b>, <b>phone</b> live in the overlay: check them with a scene Preview.</p>
     ${p.scenes.map((s,i)=>sceneRow(s,i,tl)).join('')||'<p class="hint">no scenes — add one per station in session order, plus intro / closing</p>'}
   </section>
 

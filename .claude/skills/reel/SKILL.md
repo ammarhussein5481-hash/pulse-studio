@@ -30,6 +30,7 @@ You drive `pulse-reel` (installed by `./setup.sh`, env `PULSE_TOKEN` for Pulse d
 - `pulse-reel import <dir> /media/<user>/<card>` — copies that day's camera files into raw/ and voice files into vo/ (`--all` for every date), then run ingest.
 - `pulse-reel suggest <dir>` — first draft: fills empty clips in shoot order (vertical phone clips → intro/closing, tripod clips → stations) and in-points still at 0 from the motion profile. `--all` also overwrites in-points already set — only if Ammar asks.
 - `pulse-reel preview <dir> <key>` — 3 s of one scene with overlay + voice in ~30 s (`build/preview/<key>.mp4`). Use it to check a shot or an fx before a 12-minute build; Read a frame of it with ffmpeg if you need to look.
+- `pulse-reel fxtest [dir]` — when he says an fx "makes no difference": renders a grid clip through zoomcut / pullback / glass / photo on his machine (real cut path, VAAPI included) → `build/fxtest.jpg` + an OK/FAIL table (frame 0 vs 45 SSIM). FAIL on his laptop but OK in a software run means the VAAPI path; retry with `PULSE_NO_VAAPI=1`. Overlay fx (storm, chat, inset, phone) are checked with a preview, not fxtest.
 - Ingest makes a 480p proxy per clip (`build/proxy_*.mp4`); in the web app Ammar scrubs it and sets the in-point himself — when he says "I set the sled in-point", re-read project.json rather than changing it.
 - `pulse-reel preset save <name> --dir <dir>` / `apply` — fx, audio levels, music track, length as a template (`~/.pulse-studio/presets/`). "Make it like last time" = apply his preset.
 

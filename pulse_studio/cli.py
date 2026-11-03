@@ -16,6 +16,7 @@
   pulse-reel send <dir> [--version N]                       send the reel + post copy to your phone (Pulse Telegram bot; PULSE_TG_TOKEN / PULSE_TG_CHAT)
   pulse-reel check <dir> [pre|stills|post]                  quality gates: numbers vs data, media, voice windows, safe zones, loudness, black frames…
   pulse-reel preview <dir> <key> [--len 3]                 3 s of one scene with overlay + voice → build/preview/<key>.mp4
+  pulse-reel fxtest [dir]                                   prove zoomcut / pullback / glass / photo motion work on this machine → fxtest.jpg + OK/FAIL table
   pulse-reel import <dir> <sdcard-folder> [--date|--all]    copy that day's videos → raw/, audio → vo/
   pulse-reel suggest <dir> [--all]                          first draft: clips in shoot order, in-points from the motion profile
   pulse-reel preset save|apply|list|delete <name> --dir <d> fx / audio / length as a reusable template (~/.pulse-studio/presets)
@@ -177,6 +178,11 @@ def cmd_preview(a):
                     "-map", "[v]", "-map", "[a]", "-t", str(L), "-c:v", "libx264", "-preset", "fast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(out)], check=True)
     print(f"preview: {out}  ({L:.1f}s of {a.key})")
 
+def cmd_fxtest(a):
+    """Every media fx on a grid clip through the real cut path → sheet + SSIM table (FAIL = the fx did not move)."""
+    from . import fxtest
+    fxtest.run(Path(a.dir) / "build" if a.dir else HOME)
+
 VIDEO_EXT = {".mov", ".mp4", ".m4v", ".mkv"}; AUDIO_EXT = {".m4a", ".mp3", ".wav", ".aac"}
 def cmd_import(a):
     """Copy a day's files from an SD card / phone folder into raw/ (video) and vo/ (audio)."""
@@ -282,6 +288,7 @@ def main(argv=None):
     p = sp.add_parser("match"); p.add_argument("dir"); p.set_defaults(f=cmd_match)
     p = sp.add_parser("send"); p.add_argument("dir"); p.add_argument("--version"); p.set_defaults(f=cmd_send)
     p = sp.add_parser("preview"); p.add_argument("dir"); p.add_argument("key"); p.add_argument("--len", default="3"); p.set_defaults(f=cmd_preview)
+    p = sp.add_parser("fxtest"); p.add_argument("dir", nargs="?"); p.set_defaults(f=cmd_fxtest)
     p = sp.add_parser("import"); p.add_argument("dir"); p.add_argument("src"); p.add_argument("--date"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_import)
     p = sp.add_parser("suggest"); p.add_argument("dir"); p.add_argument("--all", action="store_true", help="also overwrite in-points already set"); p.set_defaults(f=cmd_suggest)
     p = sp.add_parser("preset"); p.add_argument("action", choices=["save", "apply", "list", "delete"]); p.add_argument("name", nargs="?"); p.add_argument("--dir", default="."); p.set_defaults(f=cmd_preset)

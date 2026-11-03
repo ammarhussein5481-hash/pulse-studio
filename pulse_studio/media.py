@@ -23,15 +23,22 @@ def hwaccel_args() -> list[str]:
         return ["-hwaccel", "vaapi", "-hwaccel_device", dev, "-hwaccel_output_format", "vaapi"]
     return []
 
+def zoom_vf(sc: dict) -> str:
+    """The motion fx as a zoompan on an already 1080×1920 stream (`on` = frame number since the cut).
+    zoomcut: start 16 % in, settle over 11 frames (pairs with the whoosh + flash on the cut).
+    pullback: start 1.9× on scene.focus ([x, y] as fractions, default centre), ease out to the full shot over 40 frames."""
+    fx = set(sc.get("fx") or []); out = ""
+    if "zoomcut" in fx:
+        out += f",zoompan=z='if(lt(on,11),1.16-0.016*on,1)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
+    if "pullback" in fx:
+        fx_, fy_ = [float(v) for v in ((sc.get("focus") or [0.5, 0.5]) + [0.5, 0.5])[:2]]
+        out += f",zoompan=z='if(lt(on,40),1+0.9*pow(1-on/40,2),1)':x='({fx_}*iw)-(iw/zoom)*{fx_}':y='({fy_}*ih)-(ih/zoom)*{fy_}':d=1:s={W}x{H}:fps={FPS}"
+    return out
+
 def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta: Path) -> None:
-    """Cut one scene: crop/scale to 9:16, fx (zoomcut, glass), 30 fps, 2 s clone pad; ambience track at sc.amb_db."""
+    """Cut one scene: crop/scale to 9:16, fx (zoomcut, pullback, glass), 30 fps, 2 s clone pad; ambience track at sc.amb_db."""
     fx = set(sc.get("fx") or [])
-    vf = _vf(sc, info) + f",fps={FPS}"
-    if "zoomcut" in fx:   # snap zoom: start 16 % in, settle over 11 frames (pairs with the whoosh + flash on the cut)
-        vf += f",zoompan=z='if(lt(on,11),1.16-0.016*on,1)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
-    if "pullback" in fx:  # pull-back reveal: start 1.9× on the detail (scene.focus = [x, y] as fractions, default centre) and ease out over 40 frames
-        fx_, fy_ = (sc.get("focus") or [0.5, 0.5])[:2]
-        vf += (f",zoompan=z='if(lt(on,40),1+0.9*pow(1-on/40,2),1)':x='({fx_}*iw)-(iw/zoom)*{fx_}':y='({fy_}*ih)-(ih/zoom)*{fy_}':d=1:s={W}x{H}:fps={FPS}")
+    vf = _vf(sc, info) + f",fps={FPS}" + zoom_vf(sc)
     vf += ",setsar=1,tpad=stop_mode=clone:stop_duration=2"
     tail = ""
     if "glass" in fx:     # liquid glass: blur the region behind the title block; the overlay draws the pane's edge + tint
@@ -66,9 +73,11 @@ def shots_of(sc: dict) -> list[dict]:
     return [{"file": sc.get("clip"), "in": sc.get("in", 0), "crop": sc.get("crop", "auto"), "w": 1}] if sc.get("clip") else []
 
 def cut_photo(src: Path, sc: dict, d: float, tv: Path, ta: Path) -> None:
-    """A still as a video segment with a slow push-in (Ken Burns) + silent track."""
-    vf = (f"scale={W * 1.12:.0f}:{H * 1.12:.0f}:force_original_aspect_ratio=increase,crop={W * 1.12:.0f}:{H * 1.12:.0f},"
-          f"zoompan=z='1+0.0015*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1")
+    """A still as a video segment with a slow push-in (Ken Burns) + silent track; zoomcut/pullback replace the push-in."""
+    z = zoom_vf(sc)
+    vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}" + z if z else
+          f"scale={W * 1.12:.0f}:{H * 1.12:.0f}:force_original_aspect_ratio=increase,crop={W * 1.12:.0f}:{H * 1.12:.0f},"
+          f"zoompan=z='1+0.0015*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}") + ",setsar=1"
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-loop", "1", "-i", str(src), "-t", str(d), "-vf", vf + vaapi_tail(),
                     *venc("cut"), str(tv)], check=True)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
