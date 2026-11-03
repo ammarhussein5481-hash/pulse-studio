@@ -226,7 +226,7 @@ function render(){
   </section>
 
   <section><h2>Scenes <span class="pill">${p.scenes.length}</span> <button class="ghost sm" onclick="addScene()">+ add</button> <button class="sm" onclick="save(true)">Save project.json</button></h2>
-    <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words. fx: <b>zoomcut</b> snap zoom on the cut · <b>storm</b> facts flash before the title · <b>glass</b> frosted pane behind the title · <b>chat</b> caption as chat bubbles. Images for inset/phone go in the session's <code>assets/</code> folder.</p>
+    <p class="hint">Select a scene, then click a clip above to assign it and click transcript words to set its voice window. Captions: fix spelling, keep his words. fx: <b>zoomcut</b> snap zoom on the cut · <b>pullback</b> start on a detail (focus x,y) and pull back to the full shot · <b>storm</b> facts flash before the title · <b>glass</b> frosted pane behind the title · <b>chat</b> caption as chat bubbles. Images for inset/phone go in the session's <code>assets/</code> folder.</p>
     ${p.scenes.map((s,i)=>sceneRow(s,i,tl)).join('')||'<p class="hint">no scenes — add one per station in session order, plus intro / closing</p>'}
   </section>
 
@@ -299,11 +299,12 @@ function sceneRow(s,i,tl){
           ${x.label?`<span class="pill or">${esc(x.label)}</span>`:''}
           <button class="ghost sm" onclick="event.stopPropagation();moveShot(${i},${j},-1)">↑</button><button class="ghost sm" onclick="event.stopPropagation();moveShot(${i},${j},1)">↓</button><button class="ghost sm" onclick="event.stopPropagation();delShot(${i},${j})">✕</button></div>`).join('')}</div>`:''}
       <div class="f" style="margin-top:6px">
-        <label>fx ${['zoomcut','storm','glass','chat'].map(f=>`<span class="pill ${(s.fx||[]).includes(f)?'or':''}" style="cursor:pointer" onclick="event.stopPropagation();toggleFx(${i},'${f}')">${f}</span>`).join('')}</label>
+        <label>fx ${['zoomcut','pullback','storm','glass','chat'].map(f=>`<span class="pill ${(s.fx||[]).includes(f)?'or':''}" style="cursor:pointer" onclick="event.stopPropagation();toggleFx(${i},'${f}')">${f}</span>`).join('')}</label>
         <label>inset <input value="${esc(s.inset?.file||'')}" placeholder="assets/erg.png" style="width:140px" onchange="setObj(${i},'inset','file',this.value)"><input value="${esc(s.inset?.label||'')}" placeholder="label" style="width:90px" onchange="setObj(${i},'inset','label',this.value)"><input type="number" step="0.1" value="${s.inset?.at??''}" placeholder="at s" onchange="setObj(${i},'inset','at',+this.value)"></label>
         <label>phone <input value="${esc(s.phone?.file||'')}" placeholder="assets/pulse.png" style="width:140px" onchange="setObj(${i},'phone','file',this.value)"></label>
         <label title="caption top in px (default layout ≈1400); raise it, e.g. 1150, when the face-under-caption gate flags this scene">caption y <input type="number" step="10" value="${s.cap_y||''}" placeholder="auto" style="width:70px" onchange="sc(${i}).cap_y=this.value?+this.value:null;save()"></label>
-        ${s.key==='closing'?`<label>style <select onchange="sc(${i}).style=this.value||null;save()"><option value="">stats</option><option value="checklist" ${s.style==='checklist'?'selected':''}>checklist</option></select></label>`:''}
+        ${s.key==='closing'?`<label>style <select onchange="sc(${i}).style=this.value||null;save()"><option value="">stats</option><option value="checklist" ${s.style==='checklist'?'selected':''}>checklist</option><option value="cover" ${s.style==='cover'?'selected':''}>cover story</option></select></label>`:''}
+        ${(s.fx||[]).includes('pullback')?`<label>focus <input value="${esc((s.focus||[0.5,0.5]).join(', '))}" style="width:80px" title="where the pull-back starts, as fractions x, y (0.5, 0.5 = centre; 0.5, 0.25 = upper middle)" onchange="sc(${i}).focus=this.value.split(',').map(Number);save()"></label>`:''}
       </div>
       <textarea onchange="sc(${i}).caption=this.value;save()" placeholder="caption (Arabic, corrected)">${esc(s.caption)}</textarea>
       ${(p.captions?.en??true)?`<input value="${esc(s.caption_en||'')}" placeholder="English caption line" style="width:100%;margin-top:4px" onchange="sc(${i}).caption_en=this.value;save()">`:''}

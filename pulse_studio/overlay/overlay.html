@@ -41,6 +41,17 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 #phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
 #phone:before{content:"";position:absolute;left:50%;top:0;width:110px;height:28px;margin-left:-55px;background:#0a0a0a;border-radius:0 0 16px 16px;z-index:2}
 #chk{position:absolute;left:150px;right:150px;top:600px;display:none}
+#cover{position:absolute;inset:0;display:none}
+#cover .mast{position:absolute;left:0;right:0;top:300px;text-align:center;font-family:Anton;font-size:300px;line-height:.9;color:var(--bone);letter-spacing:.01em}
+#cover .mast b{color:var(--or);font-weight:400}
+#cover .issue{position:absolute;left:0;right:0;top:598px;text-align:center;font-family:Archivo;font-weight:700;font-size:26px;letter-spacing:.32em;color:var(--bone)}
+#cover .line{position:absolute;width:420px;font-family:Archivo;font-weight:700;color:var(--bone);opacity:0}
+#cover .line .v{font-family:Anton;font-size:96px;color:var(--or);line-height:1;font-variant-numeric:tabular-nums}
+#cover .line .e{font-size:22px;letter-spacing:.25em;text-transform:uppercase;margin-top:4px}
+#cover .line.l{left:90px;text-align:left} #cover .line.r{right:90px;text-align:right}
+#cover .strap{position:absolute;left:90px;right:90px;top:1270px;height:64px;background:var(--or);color:#111;font-family:Anton;font-size:40px;line-height:64px;text-align:center;letter-spacing:.08em;transform:scaleX(0);transform-origin:left}
+#cover .bar{position:absolute;right:90px;top:1350px;display:flex;gap:3px;height:44px;align-items:flex-end;opacity:.9}
+#cover .bar i{display:block;background:var(--bone);width:4px}
 #chk .r{display:flex;align-items:center;gap:26px;height:66px;font-family:Archivo;font-weight:700;font-size:32px;letter-spacing:.08em;text-transform:uppercase;color:var(--bone)}
 #chk .b{width:44px;height:44px;border-radius:9px;border:3px solid rgba(244,239,230,.45);display:flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box}
 #chk .r.on .b{background:var(--or);border-color:var(--or)}
@@ -54,7 +65,7 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 </style></head><body>
 <div id="glass"></div><div id="wm" class="sh">__WATERMARK__</div><div id="pl" class="sh"></div><div id="prog"><i></i></div>
 <div id="top" class="sh"><div id="kicker" class="lat"></div><div id="name"></div><div id="big"></div><div id="sub"></div></div>
-<div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="phone"><img></div>
+<div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="cover" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="phone"><img></div>
 <svg id="dia" viewBox="0 0 1080 300"></svg>
 <div id="cap" class="sh"></div><div id="capen" class="sh"></div><div id="flash"></div>
 <script src="data.js"></script>
@@ -209,8 +220,16 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("sub").dataset.k=sc.key; $("sub").innerHTML=m[3].split(" ").map(w=>`<span>${w}</span>`).join(" ");
   const cw=sc.cap.split(/\s+/).filter(Boolean), tw=sc.words, mc=cw.length, nt=tw.length;
   $("cap").innerHTML=cw.map((w,i)=>{const j=nt===mc?i:Math.round(i*(nt-1)/Math.max(1,mc-1)); return `<span data-s="${tw[Math.min(j,nt-1)][1]}">${w}</span>`;}).join(" ");
-  const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]); const chk=sc.key==="closing"&&o.style==="checklist";
-  $("grid").innerHTML= sc.key==="closing"&&!chk ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
+  const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]); const chk=sc.key==="closing"&&o.style==="checklist"; const cov=sc.key==="closing"&&o.style==="cover";
+  // cover story: the closing as a magazine cover — masthead, issue line, cover lines from the session stats, a strap, a barcode
+  $("cover").style.display=cov?"block":"none";
+  if(cov){ const F=FINALS(); const ses=D._session||{}; const best=ORDER.filter(k=>D[k]&&D[k].rep).map(k=>D[k].s/(D[k].m/1000)); const extra=best.length?[[mm(Math.min(...best)),"BEST KM"]]:(ses.max_hr?[[ses.max_hr,"MAX BPM"]]:[]);
+    const lines=F.slice(0,4).map(f=>[f[2]?f[0].toFixed(f[2]):Math.round(f[0]),f[1]]).concat(extra).slice(0,5); const dt=new Date(ses.date||Date.now());
+    $("cover").innerHTML=`<div class="mast">PU<b>L</b>SE</div><div class="issue">${(ses.type||"").toUpperCase()} ISSUE · ${dt.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}).toUpperCase()}</div>`
+      +lines.map((l,i)=>`<div class="line ${i%2?"r":"l"}" style="top:${700+Math.floor(i/2)*190}px"><div class="v">${l[0]}</div><div class="e">${l[1]}</div></div>`).join("")
+      +`<div class="strap">${o.name?o.name.toUpperCase():"ALL NUMBERS FROM GARMIN + PULSE"}</div><div class="bar">${Array.from({length:34},()=>`<i style="height:${30+Math.round(Math.random()*24)}px;width:${2+Math.round(Math.random()*4)}px"></i>`).join("")}</div>`; }
+  $("top").style.display=cov?"none":""; $("dia").style.visibility=cov?"hidden":"";
+  $("grid").innerHTML= sc.key==="closing"&&!chk&&!cov ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
   // headline storm: the sub-line's facts flash one by one before the title lands
   $("storm").innerHTML=""; $("storm").style.display="none";
   if(fx.has("storm")){ const parts=m[3].split("·").map(x=>x.trim()).filter(Boolean); $("storm").dataset.n=parts.length; $("storm").innerHTML=parts.map(x=>`<div>${x}</div>`).join(""); }
@@ -251,6 +270,10 @@ function render(t){
   if(o.inset){const q=eo(clamp((u-(o.inset.at??1.0))/0.45,0,1)); $("inset").style.opacity=q*vis; $("inset").style.transform=`translateX(${(1-q)*140}px) rotate(${(1-q)*6}deg)`;}
   if(o.phone){const q=eo(clamp((u-(o.phone.at??0.8))/0.6,0,1)); $("phone").style.opacity=q*vis; $("phone").style.transform=`translateY(${(1-q)*260}px) rotate(${(1-q)*-4}deg)`;}
   if(fx.has("chat")){[...$("cap").children].forEach(b=>{const s=+b.dataset.s; const q=eo(clamp((t-s+0.05)/0.25,0,1)); b.style.opacity=q*vis; b.style.transform=`scale(${0.7+0.3*q}) translateY(${(1-q)*20}px)`;});}
+  if(fin&&o.style==="cover"){ const mq=eo(clamp((u-0.1)/0.5,0,1)); const mast=$("cover").querySelector(".mast"); mast.style.transform=`translateY(${(1-mq)*-60}px)`; mast.style.opacity=mq*vis;
+    $("cover").querySelector(".issue").style.opacity=clamp((u-0.5)/0.3,0,1)*vis;
+    [...$("cover").querySelectorAll(".line")].forEach((l,k)=>{const q=eo(clamp((u-0.7-k*0.22)/0.5,0,1)); l.style.opacity=q*vis; l.style.transform=`translateX(${(1-q)*(l.classList.contains("r")?60:-60)}px)`;});
+    $("cover").querySelector(".strap").style.transform=`scaleX(${eo(clamp((u-1.9)/0.5,0,1))})`; $("cover").querySelector(".bar").style.opacity=clamp((u-2.3)/0.3,0,1)*vis*0.9; }
   if(fin&&o.style==="checklist"){[...$("chk").children].forEach((r,k)=>{const on=u>=0.6+k*0.35; r.classList.toggle("on",on); const q=eo(clamp((u-0.3-k*0.12)/0.3,0,1)); r.style.opacity=q*vis; r.style.transform=`translateX(${(1-q)*-40}px)`; const p=clamp((u-0.6-k*0.35)/0.18,0,1); r.firstElementChild.style.transform=on&&p<1?`scale(${1+0.35*(1-p)})`:"";});
     const t0=0.6+ORDER.length*0.35+0.2; [...$("chkf").children].forEach((c,k)=>{const q=eo(clamp((u-t0-k*0.15)/0.6,0,1)); const f=FINALS()[k]; c.firstElementChild.textContent=f[2]?(f[0]*q).toFixed(f[2]):Math.round(f[0]*q); c.style.opacity=q*vis;});}
   if(upd) upd(clamp((u-0.6)/Math.max(1,dur-1.2),0,1),u);

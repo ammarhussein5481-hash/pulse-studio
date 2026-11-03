@@ -29,6 +29,9 @@ def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta
     vf = _vf(sc, info) + f",fps={FPS}"
     if "zoomcut" in fx:   # snap zoom: start 16 % in, settle over 11 frames (pairs with the whoosh + flash on the cut)
         vf += f",zoompan=z='if(lt(on,11),1.16-0.016*on,1)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}"
+    if "pullback" in fx:  # pull-back reveal: start 1.9× on the detail (scene.focus = [x, y] as fractions, default centre) and ease out over 40 frames
+        fx_, fy_ = (sc.get("focus") or [0.5, 0.5])[:2]
+        vf += (f",zoompan=z='if(lt(on,40),1+0.9*pow(1-on/40,2),1)':x='({fx_}*iw)-(iw/zoom)*{fx_}':y='({fy_}*ih)-(ih/zoom)*{fy_}':d=1:s={W}x{H}:fps={FPS}")
     vf += ",setsar=1,tpad=stop_mode=clone:stop_duration=2"
     tail = ""
     if "glass" in fx:     # liquid glass: blur the region behind the title block; the overlay draws the pane's edge + tint
