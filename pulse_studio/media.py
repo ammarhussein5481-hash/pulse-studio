@@ -61,7 +61,7 @@ def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta
                         *venc("cut"), str(tv)], check=True)
     amp = float(sc.get("amb_db", -9))
     r = subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-ss", str(ss), "-i", str(src), "-t", str(d), "-vn", "-ac", "2", "-ar", "48000",
-                        "-af", f"apad=whole_dur={d},volume={amp}dB", "-c:a", "aac", "-b:a", "160k", str(ta)])
+                        "-af", f"apad=whole_dur={d},volume={amp}dB", "-c:a", "aac", "-b:a", "160k", str(ta)], stderr=subprocess.DEVNULL)
     if r.returncode != 0:   # clip without an audio stream (screen recording, some phone exports): silence of the same length
         subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
 
