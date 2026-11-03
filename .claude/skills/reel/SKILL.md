@@ -67,6 +67,9 @@ Ammar records line by line in the script table (● Rec / ■ Stop per line); ta
 ## Quality gates (`pulse-reel check <dir> [pre|stills|post]`)
 15 named checks (14 = a face under the caption/title via YuNet → move the caption with scene `cap_y`, e.g. 1150, or pick another in-point; 15 = SFX ≤ 20 hits/min); build runs the pre gates first and REFUSES on ✗ (numbers in the script that are not in the data, missing media, broken voice windows) — fix, don't `--force`, unless Ammar says so. After the build it reports stills (safe zones, caption lines, contrast) and post gates (container, duration/size, loudness, black/frozen frames, cut rhythm) and writes `out/<name>-vN.check.json`. Report the verdict ("11/13, ! caption bright on cooldown") with the version. Gate 1 parses the Sudanese numbers in each line (أربع دقايق وسبع ثواني → 4, 7) against that scene's data parts.
 
+## Synthetic voice
+Tried SILMA TTS v1 voice cloning on 2026-11-03: not usable for Ammar's Sudanese voice-over (verdict: "not good at all"). Do not suggest TTS/voice cloning for the voice-over again unless he raises it; the line-by-line recording is the way.
+
 ## Delivery
 `pulse-reel send <dir>` sends the latest version to his phone through the Pulse Telegram bot with the post copy (Arabic intro line + closing + English + hashtags; also written to `out/<name>-vN.post.txt`). Needs `PULSE_TG_TOKEN` / `PULSE_TG_CHAT`.
 
