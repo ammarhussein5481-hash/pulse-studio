@@ -29,7 +29,7 @@ SCENE_TEMPLATE = {
     "script": "",             # the line he was asked to record (from `pulse-reel script`); caption starts as a copy of it
     "caption_en": "",         # English line under the Arabic caption, shown when captions.en is true
     "title": None,            # override: [kicker, name, big, sub]
-    "fx": [],                 # effects: "zoomcut" (snap zoom-in on the cut), "storm" (headline storm before the title), "glass" (liquid-glass panel behind the title), "chat" (caption as chat bubbles)
+    "fx": [],                 # effects: "zoomcut" (snap zoom-in on the cut), "pullback" (start on scene.focus, pull back), "glitch" (RGB split + sliced bands on the cut), "storm" (headline storm before the title), "glass" (liquid-glass panel behind the title), "chat" (caption as chat bubbles)
     "inset": None,            # b-roll overlay: {"file": "assets/erg.png", "at": 1.0, "w": 300, "pos": [740, 980], "label": "ERGDATA"}
     "phone": None,            # phone mockup: {"file": "assets/pulse.png", "at": 0.8}
     "focus": None,            # [x, y] 0–1: the detail a pullback starts on (watch face, erg screen); default centre

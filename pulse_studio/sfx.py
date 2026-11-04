@@ -53,7 +53,14 @@ def generate(tl: dict, out: Path, total_s: float = 60.0, proj: dict | None = Non
         if (opts.get("closing") or {}).get("style") == "checklist":   # one pop per station ticking off
             n = len((tl.get("order") or [])) or 8
             for i in range(n): put(pop(), fin + 0.6 + i * 0.35, 0.4, "pop")
+        if (opts.get("closing") or {}).get("style") == "typewriter":   # one key click per typed character
+            from .overlay import typewriter_text, TW_CPS, TW_START
+            txt = typewriter_text(opts["closing"]); cps = max(TW_CPS, len(txt) / max(1, 0.7 * (scenes[-1]["end"] - fin) - TW_START))
+            for i, ch in enumerate(txt):
+                if ch != " ": put(tick(), fin + TW_START + i / cps, 0.3, "tick")
         for s in scenes:
+            if "glitch" in (opts.get(s["key"], {}).get("fx") or []):   # glitch cut: a short buzz of ticks on the cut
+                for k in range(8): put(tick(), s["start"] + k / 30, 0.45, "tick")
             if "storm" in (opts.get(s["key"], {}).get("fx") or []):     # headline storm: a tick per flashed word
                 for k in range(5): put(tick(), s["start"] + 0.1 + k * 0.16, 0.35, "tick")
     import json

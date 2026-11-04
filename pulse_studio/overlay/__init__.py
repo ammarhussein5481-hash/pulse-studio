@@ -19,6 +19,7 @@ def write_page(dir: Path, proj: dict, data: dict, tl: dict) -> Path:
     opts = {}; (b / "assets").mkdir(exist_ok=True)
     for s in proj["scenes"]:
         o = {"fx": s.get("fx") or [], "style": s.get("style"), "parts": s.get("parts"), "name": s.get("name"), "cap_y": s.get("cap_y"), "en": (s.get("caption_en") or "") if (proj.get("captions") or {}).get("en", True) else ""}
+        if s.get("style") == "typewriter": o["tw"] = typewriter_text(s)
         for k in ("inset", "phone"):
             v = s.get(k)
             if v and v.get("file"):
@@ -29,6 +30,13 @@ def write_page(dir: Path, proj: dict, data: dict, tl: dict) -> Path:
     (b / "data.js").write_text("window.DATA=" + json.dumps({"data": data, "timeline": tl, "titles": titles, "scenes": opts}, ensure_ascii=False) + ";", encoding="utf-8")
     page = b / "overlay.html"; page.write_text(html, encoding="utf-8")
     return page
+
+TW_CPS = 16      # typewriter closing: characters per second (overlay + SFX keystrokes share it)
+TW_START = 0.5   # seconds into the closing before the first key
+
+def typewriter_text(sc: dict) -> str:
+    """The line the typewriter closing types: the scene's English caption (it then leaves the caption block), else the identity line."""
+    return (sc.get("caption_en") or "ALL NUMBERS FROM GARMIN + PULSE").strip()
 
 def stills(dir: Path, times: list[float]) -> list[Path]:
     b = Path(dir) / "build"; out = b / "stills"

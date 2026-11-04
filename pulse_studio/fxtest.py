@@ -10,7 +10,7 @@ from pathlib import Path
 from .config import ffmpeg, probe, FPS
 from . import media
 
-ROWS = [("none", []), ("zoomcut", ["zoomcut"]), ("pullback", ["pullback"]), ("pullback+focus", ["pullback"]), ("glass", ["glass"])]
+ROWS = [("none", []), ("zoomcut", ["zoomcut"]), ("pullback", ["pullback"]), ("pullback+focus", ["pullback"]), ("glitch", ["glitch"]), ("glass", ["glass"])]
 FRAMES = (0, 5, 20, 45)
 
 def _ssim(a: Path, b: Path) -> float:
@@ -24,7 +24,7 @@ def run(out_dir: Path) -> Path:
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", grid, "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)], check=True)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", grid, "-frames:v", "1", str(photo)], check=True)
     info = probe(src); rows, report = [], []
-    cases = ROWS + [("photo", []), ("photo+pullback", ["pullback"])]
+    cases = ROWS + [("photo", []), ("photo+pullback", ["pullback"]), ("photo+glitch", ["glitch"])]
     for name, fx in cases:
         sc = {"clip": src.name, "fx": fx, "crop": "auto", "amb_db": -9, "focus": [0.75, 0.25] if name == "pullback+focus" else None}
         v, a = t / f"{name}.mp4", t / f"{name}.m4a"

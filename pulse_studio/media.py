@@ -35,6 +35,21 @@ def zoom_vf(sc: dict) -> str:
         out += f",zoompan=z='if(lt(on,40),1+0.9*pow(1-on/40,2),1)':x='({fx_}*iw)-(iw/zoom)*{fx_}':y='({fy_}*ih)-(ih/zoom)*{fy_}':d=1:s={W}x{H}:fps={FPS}"
     return out
 
+GLITCH_N = 8   # frames of glitch on the cut
+
+def glitch_chain(sc: dict, src: str, dst: str) -> str:
+    """fx "glitch": for the first GLITCH_N frames the red/blue channels split and three horizontal bands jump sideways
+    (alternating direction every frame), then the picture snaps back clean. filter_complex fragment [src] → [dst]."""
+    if "glitch" not in set(sc.get("fx") or []): return f";[{src}]null[{dst}]"
+    en = f"enable='lt(n,{GLITCH_N})'"; bands = [(420, 110, 48), (980, 80, -70), (1380, 150, 36)]
+    out = f";[{src}]rgbashift=rh=-14:bh=14:{en},split=4[{dst}m][{dst}s1][{dst}s2][{dst}s3]"
+    cur = f"{dst}m"
+    for k, (y, h, dx) in enumerate(bands, 1):
+        out += f";[{dst}s{k}]crop=iw:{h}:0:{y}[{dst}c{k}]"
+        nxt = dst if k == len(bands) else f"{dst}m{k}"
+        out += f";[{cur}][{dst}c{k}]overlay=x='(mod(n,2)*2-1)*{dx}':y={y}:{en}[{nxt}]"; cur = nxt
+    return out
+
 def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta: Path) -> None:
     """Cut one scene: crop/scale to 9:16, fx (zoomcut, pullback, glass), 30 fps, 2 s clone pad; ambience track at sc.amb_db."""
     fx = set(sc.get("fx") or [])
@@ -46,8 +61,8 @@ def cut_scene(src: Path, sc: dict, info: dict, ss: float, d: float, tv: Path, ta
     hw = hwaccel_args()
     # hw frames skip ffmpeg's autorotate: apply the display rotation by hand after download
     turn = {90: "transpose=cclock,", 180: "hflip,vflip,", 270: "transpose=clock,"}.get(info.get("rotation", 0), "")
-    def fc(v):   # [0:v] → filters → [v0] → (glass) → [v1] → (hwupload for VAAPI) → [v]
-        chain = f"[0:v]{v}[v0]" + (tail.replace("[v]", "[v1]") if tail else ";[v0]null[v1]")
+    def fc(v):   # [0:v] → filters → [v0] → (glitch) → [vg] → (glass) → [v1] → (hwupload for VAAPI) → [v]
+        chain = f"[0:v]{v}[v0]" + glitch_chain(sc, "v0", "vg") + (tail.replace("[v0]", "[vg]").replace("[v]", "[v1]") if tail else ";[vg]null[v1]")
         return chain + f";[v1]null{vaapi_tail()}[v]"
     vf_hw = ("hwdownload,format=nv12," + turn + vf) if hw else vf
     cmd = [ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), *hw, "-ss", str(ss), "-i", str(src), "-t", str(d), "-an", "-filter_complex", fc(vf_hw), "-map", "[v]",
@@ -78,8 +93,8 @@ def cut_photo(src: Path, sc: dict, d: float, tv: Path, ta: Path) -> None:
     vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}" + z if z else
           f"scale={W * 1.12:.0f}:{H * 1.12:.0f}:force_original_aspect_ratio=increase,crop={W * 1.12:.0f}:{H * 1.12:.0f},"
           f"zoompan=z='1+0.0015*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS}") + ",setsar=1"
-    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-loop", "1", "-i", str(src), "-t", str(d), "-vf", vf + vaapi_tail(),
-                    *venc("cut"), str(tv)], check=True)
+    subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", *vaapi_dev(), "-loop", "1", "-i", str(src), "-t", str(d), "-filter_complex",
+                    f"[0:v]{vf}[v0]" + glitch_chain(sc, "v0", "vg") + f";[vg]null{vaapi_tail()}[v]", "-map", "[v]", *venc("cut"), str(tv)], check=True)
     subprocess.run([ffmpeg(), "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", str(d), "-c:a", "aac", "-b:a", "96k", str(ta)], check=True)
 
 def cut_shots(b: Path, raw: Path, sc: dict, key: str, d: float, i, tv: Path, ta: Path) -> None:

@@ -38,6 +38,16 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 #inset img{width:100%;display:block}
 #inset .l{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:var(--bone);font:700 20px Archivo;letter-spacing:.25em;text-align:center;padding:8px 0}
 #phone{position:absolute;right:80px;top:600px;width:300px;height:620px;border-radius:46px;background:#0a0a0a;border:7px solid #262626;box-shadow:0 24px 70px rgba(0,0,0,.7),inset 0 0 0 2px #000;overflow:hidden;opacity:0}
+#rings{position:absolute;right:80px;top:600px;width:300px;height:620px;pointer-events:none;opacity:0}
+#rings i{position:absolute;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;border:3px solid var(--bone);opacity:0}
+#tw{position:absolute;left:80px;right:80px;top:640px;border-radius:26px;background:rgba(0,0,0,.58);border:2px solid rgba(244,239,230,.28);box-shadow:0 24px 70px rgba(0,0,0,.5);display:none;overflow:hidden;font-family:Archivo;font-weight:700;color:var(--bone)}
+#tw .hd{height:52px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:10px;padding-left:22px;border-bottom:1px solid rgba(255,255,255,.12)}
+#tw .hd i{width:16px;height:16px;border-radius:50%;background:rgba(244,239,230,.35)} #tw .hd i:first-child{background:var(--or)}
+#tw .hd span{margin-left:auto;margin-right:22px;font-size:20px;letter-spacing:.3em;opacity:.6}
+#tw .ln{padding:0 30px;font-size:38px;line-height:1.55;white-space:pre-wrap;word-break:break-word;min-height:60px}
+#tw .ln:first-of-type{padding-top:20px} #tw .ln:last-child{padding-bottom:22px}
+#tw .p{color:var(--or);margin-right:16px} #tw .c{display:inline-block;width:20px;height:40px;background:var(--or);vertical-align:-6px;margin-left:4px}
+#grid.tw{top:960px;gap:30px 30px} #grid.tw .v{font-size:100px}
 #phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
 #phone:before{content:"";position:absolute;left:50%;top:0;width:110px;height:28px;margin-left:-55px;background:#0a0a0a;border-radius:0 0 16px 16px;z-index:2}
 #chk{position:absolute;left:150px;right:150px;top:600px;display:none}
@@ -65,7 +75,7 @@ svg text{font-family:Archivo;font-weight:700;fill:__BONE__}
 </style></head><body>
 <div id="glass"></div><div id="wm" class="sh">__WATERMARK__</div><div id="pl" class="sh"></div><div id="prog"><i></i></div>
 <div id="top" class="sh"><div id="kicker" class="lat"></div><div id="name"></div><div id="big"></div><div id="sub"></div></div>
-<div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="cover" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="phone"><img></div>
+<div id="grid" class="sh"></div><div id="storm" class="sh"></div><div id="chk" class="sh"></div><div id="cover" class="sh"></div><div id="chkf" class="sh"></div><div id="inset"><img><div class="l"></div></div><div id="rings"><i></i><i></i><i></i></div><div id="phone"><img></div><div id="tw"><div class="hd"><i></i><i></i><i></i><span>PULSE</span></div><div class="ln l1"></div><div class="ln l2"></div></div>
 <svg id="dia" viewBox="0 0 1080 300"></svg>
 <div id="cap" class="sh"></div><div id="capen" class="sh"></div><div id="flash"></div>
 <script src="data.js"></script>
@@ -190,11 +200,11 @@ function repsAll(svg,d){ // workout phase: every rep as a pace bar, lit in seque
   const all=secs.concat(tgt?[tgt]:[]); const fast=Math.min(...all)-8, slow=Math.max(...all)+8; const x0=120,x1=960,y1=150,hmax=110; const n=keys.length, w=Math.min(90,(x1-x0)/n-10), gap=(x1-x0-n*w)/Math.max(1,n-1);
   const H=sec=>hmax*(0.25+0.75*(slow-sec)/(slow-fast)); const best=Math.min(...secs);
   const bars=keys.map((k,i)=>{const x=x0+i*(w+gap); const on=secs[i]===best; const r=el("rect",{x,y:y1,width:w,height:0,rx:6,fill:on?"__OR__":"__BONE__",opacity:on?1:.75}); svg.appendChild(r);
-    const t=el("text",{x:x+w/2,y:y1+30,"font-size":22,"text-anchor":"middle",opacity:.9}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i])};});
+    const t=el("text",{x:x+w/2,y:y1+30,"font-size":22,"text-anchor":"middle",opacity:.9}); t.textContent=mm(secs[i]); svg.appendChild(t); return {r,h:H(secs[i]),t};});
   if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:Math.min(y-10,y1-Math.max(...secs.map(H))-8),"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
   const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM · BEST HIGHLIGHTED`; svg.appendChild(hd);
   const upd=d.trace&&d.trace.length>1?hrTrace(svg,d.trace,120,960,196,250,d.max,true):null;
-  return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.3-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); if(upd) upd(clamp(p*1.2,0,1));};
+  return p=>{waveBars(bars,p,n,y1,true); if(upd) upd(clamp(p*1.2,0,1));};
 }
 function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep lit, target pace as a dashed line, HR trace of this rep beneath
   const keys=ORDER.filter(k=>/^rep\d+$/.test(k)); const secs=keys.map(k=>D[k].s/(D[k].m/1000)); const tgt=SES.target&&/^\d+:\d\d$/.test(SES.target)?toSec(SES.target):null;
@@ -205,8 +215,12 @@ function reps(svg,d,key){ // all reps as pace bars (taller = faster), this rep l
   if(tgt){const y=y1-H(tgt); svg.appendChild(el("line",{x1:x0,x2:x1,y1:y,y2:y,stroke:"__BONE__","stroke-width":2,"stroke-dasharray":"10 8",opacity:.7})); const tl=el("text",{x:x1,y:Math.min(y-10,y1-Math.max(...secs.map(H))-8),"font-size":20,"text-anchor":"end",opacity:.8}); tl.textContent="TARGET "+SES.target; svg.appendChild(tl);}
   const hd=el("text",{x:x0,y:22,"font-size":22,opacity:.8}); hd.textContent=`${n} × ${km1(D[keys[0]].m)} KM · PACE /KM`; svg.appendChild(hd);
   const upd=hrTrace(svg,d.trace,120,960,196,250,d.max,true);
-  return p=>{bars.forEach((b,i)=>{const q=eo(clamp((p*n*1.4-i)/1.5,0,1)); b.r.setAttribute("height",b.h*q); b.r.setAttribute("y",y1-b.h*q);}); upd(clamp(p*1.2,0,1));};
+  return p=>{waveBars(bars,p,n,y1,false); upd(clamp(p*1.2,0,1));};
 }
+// bars grow in a staggered wave with a small overshoot; colour builds from bone to the accent first→last (the lit bar stays accent); a second, softer ripple runs after they land
+function waveBars(bars,p,n,y1,tint){ bars.forEach((b,i)=>{const q=clamp((p*n*1.3-i)/1.5,0,1); const e=eo(q)*(q<1?1+0.14*Math.sin(q*Math.PI):1); const rp=clamp((p*n*1.3-n-0.6-i*0.35)/1.2,0,1); const rip=rp>0&&rp<1?0.06*Math.sin(rp*Math.PI):0; const h=b.h*(e+rip);
+    b.r.setAttribute("height",Math.max(0,h)); b.r.setAttribute("y",y1-Math.max(0,h)); const lit=b.r.getAttribute("fill")==="__OR__";
+    if(tint&&!lit) b.r.style.fill=`color-mix(in srgb, __OR__ ${Math.round(15+70*i/Math.max(1,n-1))}%, __BONE__)`; if(!lit) b.r.setAttribute("opacity",0.35+0.4*q); if(b.t) b.t.setAttribute("opacity",(lit?1:0.75)*clamp((q-0.6)/0.4,0,1)); });}
 const BUILD={skierg:(s,d)=>splits(s,d), row:(s,d)=>splits(s,d), farmers:(s,d)=>track(s,d), lunges:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max),
  wall_balls:(s,d)=>ring(s,d,"REPS",100), burpee_bj:(s,d)=>ring(s,d,"JUMPS",d.steps||32), sled_push:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max), run:(s,d)=>hrTrace(s,d.trace,120,960,40,230,d.max),
  closing:(s)=>zones(s,D._session)};
@@ -220,7 +234,7 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("sub").dataset.k=sc.key; $("sub").innerHTML=m[3].split(" ").map(w=>`<span>${w}</span>`).join(" ");
   const cw=sc.cap.split(/\s+/).filter(Boolean), tw=sc.words, mc=cw.length, nt=tw.length;
   $("cap").innerHTML=cw.map((w,i)=>{const j=nt===mc?i:Math.round(i*(nt-1)/Math.max(1,mc-1)); return `<span data-s="${tw[Math.min(j,nt-1)][1]}">${w}</span>`;}).join(" ");
-  const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]); const chk=sc.key==="closing"&&o.style==="checklist"; const cov=sc.key==="closing"&&o.style==="cover";
+  const o=OPT[sc.key]||{}, fx=new Set(o.fx||[]); const chk=sc.key==="closing"&&o.style==="checklist"; const cov=sc.key==="closing"&&o.style==="cover"; const twr=sc.key==="closing"&&o.style==="typewriter";
   // cover story: the closing as a magazine cover — masthead, issue line, cover lines from the session stats, a strap, a barcode
   $("cover").style.display=cov?"block":"none";
   if(cov){ const F=FINALS(); const ses=D._session||{}; const best=ORDER.filter(k=>D[k]&&D[k].rep).map(k=>D[k].s/(D[k].m/1000)); const extra=best.length?[[mm(Math.min(...best)),"BEST KM"]]:(ses.max_hr?[[ses.max_hr,"MAX BPM"]]:[]);
@@ -228,8 +242,11 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
     $("cover").innerHTML=`<div class="mast">PU<b>L</b>SE</div><div class="issue">${(ses.type||"").toUpperCase()} ISSUE · ${dt.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}).toUpperCase()}</div>`
       +lines.map((l,i)=>`<div class="line ${i%2?"r":"l"}" style="top:${700+Math.floor(i/2)*190}px"><div class="v">${l[0]}</div><div class="e">${l[1]}</div></div>`).join("")
       +`<div class="strap">${o.name?o.name.toUpperCase():"ALL NUMBERS FROM GARMIN + PULSE"}</div><div class="bar">${Array.from({length:34},()=>`<i style="height:${30+Math.round(Math.random()*24)}px;width:${2+Math.round(Math.random()*4)}px"></i>`).join("")}</div>`; }
-  $("top").style.display=cov?"none":""; $("dia").style.visibility=cov?"hidden":"";
-  $("grid").innerHTML= sc.key==="closing"&&!chk&&!cov ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
+  $("top").style.display=cov?"none":""; $("dia").style.visibility=cov||twr?"hidden":"";
+  // typewriter closing: a terminal line types out (one key click per character in the SFX), finals beneath
+  $("tw").style.display=twr?"block":"none"; $("grid").classList.toggle("tw",twr);
+  if(twr){ const ses=D._session||{}; const dt=new Date(ses.date||Date.now()); $("tw").querySelector(".l1").innerHTML=`<span class="p">pulse ›</span>${(ses.type||"session").toLowerCase()} · ${dt.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}).toLowerCase()}`; $("tw").querySelector(".l2").innerHTML=`<span class="p">›</span><span class="txt"></span><i class="c"></i>`; }
+  $("grid").innerHTML= sc.key==="closing"&&!chk&&!cov||twr ? FINALS().map(f=>`<div><div class="v">0</div><div class="e">${f[1]}</div></div>`).join("") : "";
   // headline storm: the sub-line's facts flash one by one before the title lands
   $("storm").innerHTML=""; $("storm").style.display="none";
   if(fx.has("storm")){ const parts=m[3].split("·").map(x=>x.trim()).filter(Boolean); $("storm").dataset.n=parts.length; $("storm").innerHTML=parts.map(x=>`<div>${x}</div>`).join(""); }
@@ -238,7 +255,7 @@ function setScene(sc){ cur=sc; const svg=$("dia"); while(svg.firstChild) svg.rem
   $("cap").className=fx.has("chat")?"chat sh":"sh";
   if(fx.has("chat")){ const bubs=[]; let cur=[]; cw.forEach((w,i)=>{cur.push(i); if(/[.،؟!]$/.test(w)||i===cw.length-1){bubs.push(cur);cur=[]}});
     $("cap").innerHTML=bubs.map((ix,k)=>{const j=nt===mc?ix[0]:Math.round(ix[0]*(nt-1)/Math.max(1,mc-1)); return `<div class="bub ${k%2?"me":""}" data-s="${tw[Math.min(j,nt-1)][1]}">${ix.map(i=>cw[i]).join(" ")}</div>`;}).join(""); }
-  $("capen").textContent=o.en||"";
+  $("capen").textContent=twr?"":(o.en||"");   // typewriter closing types the English line itself
   if(o.cap_y){$("cap").style.top=(+o.cap_y)+"px"; $("capen").style.top=(+o.cap_y+140)+"px";} else {$("cap").style.top=""; $("capen").style.top="";}   // per-scene caption position (face under the caption)
   // b-roll inset + phone mockup
   const ins=$("inset"); ins.style.opacity=0; if(o.inset){ins.querySelector("img").src=o.inset.file; ins.querySelector(".l").textContent=o.inset.label||""; ins.style.width=(o.inset.w||300)+"px"; const [x,y]=o.inset.pos||[740,980]; ins.style.left=x+"px"; ins.style.top=y+"px";}
@@ -268,7 +285,13 @@ function render(t){
   [...$("sub").children].forEach((w,k)=>{const q=eo(clamp((uu-0.8-k*0.07)/0.18,0,1)); w.style.opacity=q; w.style.transform=`translateY(${(1-q)*14}px) scale(${0.8+0.2*q})`;});
   $("glass").style.opacity=vis*eo(clamp(uu/0.4,0,1));
   if(o.inset){const q=eo(clamp((u-(o.inset.at??1.0))/0.45,0,1)); $("inset").style.opacity=q*vis; $("inset").style.transform=`translateX(${(1-q)*140}px) rotate(${(1-q)*6}deg)`;}
-  if(o.phone){const q=eo(clamp((u-(o.phone.at??0.8))/0.6,0,1)); $("phone").style.opacity=q*vis; $("phone").style.transform=`translateY(${(1-q)*260}px) rotate(${(1-q)*-4}deg)`;}
+  if(o.phone){const q=eo(clamp((u-(o.phone.at??0.8))/0.6,0,1)); $("phone").style.opacity=q*vis; $("phone").style.transform=`translateY(${(1-q)*260}px) rotate(${(1-q)*-4}deg)`;
+    // rings breathe out from behind the phone once it has landed
+    const r0=u-(o.phone.at??0.8)-0.5; $("rings").style.opacity=r0>0?vis:0; [...$("rings").children].forEach((c,k)=>{const q=((r0-k*0.6)/1.8)%1; const on=r0-k*0.6>0; c.style.opacity=on?0.55*(1-q):0; c.style.transform=`scale(${1+q*1.9})`;});}
+  else $("rings").style.opacity=0;
+  if(fin&&o.style==="typewriter"){ const txt=o.tw||""; const cps=Math.max(16,txt.length/Math.max(1,0.7*dur-0.5)); const n=clamp(Math.floor((u-0.5)*cps),0,txt.length); /* same rule as sfx.py: typed by 70 % of the closing */ const el2=$("tw").querySelector(".txt"); if(el2) el2.textContent=txt.slice(0,n);
+    $("tw").querySelector(".l1").style.opacity=clamp((u-0.15)/0.2,0,1); $("tw").querySelector(".l2").style.opacity=clamp((u-0.4)/0.2,0,1); const cc=$("tw").querySelector(".c"); if(cc) cc.style.opacity=(n<txt.length||Math.floor(u*2.4)%2===0)?1:0;
+    $("tw").style.opacity=vis; $("tw").style.transform=`translateY(${(1-eo(clamp(u/0.4,0,1)))*40}px)`; }
   if(fx.has("chat")){[...$("cap").children].forEach(b=>{const s=+b.dataset.s; const q=eo(clamp((t-s+0.05)/0.25,0,1)); b.style.opacity=q*vis; b.style.transform=`scale(${0.7+0.3*q}) translateY(${(1-q)*20}px)`;});}
   if(fin&&o.style==="cover"){ const mq=eo(clamp((u-0.1)/0.5,0,1)); const mast=$("cover").querySelector(".mast"); mast.style.transform=`translateY(${(1-mq)*-60}px)`; mast.style.opacity=mq*vis;
     $("cover").querySelector(".issue").style.opacity=clamp((u-0.5)/0.3,0,1)*vis;
