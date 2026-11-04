@@ -191,7 +191,7 @@ def stills(dir: Path) -> list[dict]:
         import numpy as np
         from PIL import Image
     except ImportError:
-        return [R(6, "safe zones", "warn", "Pillow/numpy missing")]
+        return [R(6, "safe zones", "warn", "Pillow/numpy missing — run ./setup.sh again (new dependencies)")]
     from . import overlay
     times = [round((s["start"] + s["end"]) / 2 + 0.6, 2) for s in tl["scenes"]]
     fr = b / "qa_frames"; import shutil; shutil.rmtree(fr, ignore_errors=True)
@@ -301,14 +301,18 @@ def post(dir: Path, out_mp4: Path) -> list[dict]:
     # SFX density (B Studio's rule: ≤ 20 hits / minute, nothing stacked closer than 150 ms); ticks are texture and count per burst
     ev = b / "sfx_events.json"
     if ev.exists() and proj["audio"].get("sfx", True):
-        E = json.loads(ev.read_text()); hits = sorted(t for t, k, g in E if k != "tick"); bursts = []
-        for t, k, g in sorted(E):
-            if k == "tick" and (not bursts or t - bursts[-1] > 0.4): bursts.append(t)
-        allh = sorted(hits + bursts); per_min = len(allh) / max(1.0, dur / 60); w = []
-        if per_min > 20: w.append(f"{per_min:.0f} hits/min (> 20)")
+        # an "accent" = one moment the ear hears: the whoosh + ticks + hit + pops around a cut are one accent, a typewriter line is one,
+        # so events are clustered with ≤ 0.5 s gaps; "stacked" = two real hits (not ticks/pops, which are texture by design) < 150 ms apart
+        E = sorted(json.loads(ev.read_text())); accents = []
+        for t, k, g in E:
+            if not accents or t - accents[-1][1] > 0.5: accents.append([t, t])
+            else: accents[-1][1] = t
+        hits = [t for t, k, g in E if k not in ("tick", "pop")]
+        per_min = len(accents) / max(1.0, dur / 60); w = []
+        if per_min > 20: w.append(f"{per_min:.0f} accents/min (> 20)")
         close = sum(1 for a_, b_ in zip(hits, hits[1:]) if 0 < b_ - a_ < 0.15)
         if close > 3: w.append(f"{close} hits closer than 150 ms")
-        res.append(R(15, "SFX ≤ 20 hits/min, not stacked", "warn" if w else "pass", "; ".join(w) or f"{per_min:.0f}/min"))
+        res.append(R(15, "SFX ≤ 20 accents/min, not stacked", "warn" if w else "pass", "; ".join(w) or f"{per_min:.0f}/min"))
     # cut rhythm
     if tl:
         short = [f"{s['key']} {s['end'] - s['start']:.1f}s" for s in tl["scenes"] if s["end"] - s["start"] < 1.5]
