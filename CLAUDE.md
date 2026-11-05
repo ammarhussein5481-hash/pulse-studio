@@ -17,3 +17,6 @@ Local reel builder for Ammar's training sessions: clips (4K camera + phone) + a 
 
 ## Test
 `PULSE_STUDIO_HOME=/tmp/psh ./setup.sh` once, then on a project folder: `pulse-reel ingest`, `data`, `stt`, `timeline`, `stills`, `build`. Synthetic smoke test: generate a few `testsrc2` clips into `raw/`, copy `examples/.../data.json` with `session.source = "file"`.
+
+## Tour reels (`tours/`)
+Multi-day trip reels from an athlete's Strava data (no voice-over), self-contained per tour: `tours/<tour>/run.sh` builds everything (base cut → u2net rider masks → SFX → two-layer overlay (big text behind the rider) → composite). First one: `tours/mallorca-hussain-2026-10/` (Hussain, 6 days, 520 km). Same climbday identity; data pulled from activereel's Strava connection on the VPS. Not wired into `project.json`/the web app yet.

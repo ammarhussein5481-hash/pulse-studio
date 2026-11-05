@@ -1,0 +1,155 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Anton;src:url(node_modules/@fontsource/anton/files/anton-latin-400-normal.woff2)}
+@font-face{font-family:Archivo;font-weight:500;src:url(node_modules/@fontsource/archivo/files/archivo-latin-500-normal.woff2)}
+@font-face{font-family:Archivo;font-weight:700;src:url(node_modules/@fontsource/archivo/files/archivo-latin-700-normal.woff2)}
+@font-face{font-family:Kufi;font-weight:700;src:url(node_modules/@fontsource/noto-kufi-arabic/files/noto-kufi-arabic-arabic-700-normal.woff2)}
+@font-face{font-family:Kufi;font-weight:900;src:url(node_modules/@fontsource/noto-kufi-arabic/files/noto-kufi-arabic-arabic-900-normal.woff2)}
+:root{--bone:#F4EFE6;--orange:#FF5A1E;--ink:#111}
+html,body{margin:0;width:1080px;height:1920px;background:transparent;overflow:hidden}
+#stage{position:absolute;inset:0;color:var(--bone);font-family:Archivo}
+.sh{text-shadow:0 2px 6px rgba(0,0,0,.55),0 0 24px rgba(0,0,0,.35)}
+.anton{font-family:Anton;letter-spacing:.01em;line-height:.9}
+.lab{font-family:Archivo;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:30px}
+.ar{font-family:Kufi;font-weight:700;direction:rtl;unicode-bidi:isolate}
+.flash{position:absolute;inset:0;background:#fff;pointer-events:none}
+.bar{position:absolute;height:6px;background:rgba(244,239,230,.25)}
+.bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--orange)}
+.pill{display:inline-block;background:var(--orange);color:var(--ink);font-family:Archivo;font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:26px;padding:8px 16px 6px}
+svg{overflow:visible}
+</style></head><body><div id="stage"></div>
+<script>
+const BOXES = __BOXES__;
+const RIDES = __RIDES__; const TL = __TL__; const ISLAND = __ISLAND__; const STREAMS = __STREAMS__;
+const days = [
+ {k:"d1", date:"OCT 20", n:1, title:"ARRIVAL", sub:"Port de Pollença · two shake-out rides", rides:[0,1], ar:"اليوم الأول.. الوصول والتسخين"},
+ {k:"d2", date:"OCT 21", n:2, title:"SA CALOBRA", sub:"Coll de Femenia · Coll dels Reis", rides:[2], ar:"سا كالوبرا.. أشهر تسلّق في الجزيرة", prof:"2026-10-21",
+   climbs:[{name:"Coll de Femenia",km:8.5,g:5.0,min:39},{name:"Sa Calobra · Coll dels Reis",km:9.6,g:7.0,min:81}]},
+ {k:"d3", date:"OCT 22", n:3, title:"THE FLAT 100", sub:"Pla de Mallorca loop", rides:[3], ar:"مئة كيلومتر على السهل", fact:{v:"58.8",u:"km/h",l:"top speed"}},
+ {k:"d4", date:"OCT 23", n:4, title:"CAP DE FORMENTOR", sub:"to the lighthouse and back", rides:[4], ar:"إلى منارة كاب فورمينتور", prof:"2026-10-23",
+   climbs:[{name:"Coll de sa Creueta",km:3.3,g:6.5,min:16}]},
+ {k:"d5", date:"OCT 24", n:5, title:"PUIG MAJOR", sub:"Sóller → Túnel de Monnàber → Lluc", rides:[5], ar:"بويج مايور.. أعلى نقطة في الرحلة", prof:"2026-10-24",
+   climbs:[{name:"Coll de Sóller",km:5.1,g:5.2,min:27},{name:"Puig Major",km:14.1,g:5.9,min:84}]},
+ {k:"d6", date:"OCT 25", n:6, title:"LAST RIDE", sub:"one more lap of the bay", rides:[6], ar:"اليوم الأخير.. ٨٩ كيلومتراً للوداع"},
+];
+const TOT = {km:519.8, m:6307, h:"22h 45m"};
+const sc = id => TL.scenes.find(s=>s.id===id);
+const win = (ids)=>{const ss=TL.scenes.filter(s=>ids.some(i=>s.id.startsWith(i)));return [ss[0].start, ss[ss.length-1].end]};
+for(const d of days){ [d.t0,d.t1]=win([d.k]); d.km=d.rides.reduce((a,i)=>a+RIDES[i].km,0); d.m=d.rides.reduce((a,i)=>a+RIDES[i].m,0); d.min=d.rides.reduce((a,i)=>a+RIDES[i].min,0);}
+const hook={start:0,end:sc("hookD").end}, close=sc("close");
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease=x=>1-Math.pow(1-x,3); const easeIn=x=>x*x*x;
+const fmt=(n,d=0)=>n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+// --- island map with routes ---
+function islandProj(W,H,pad){ const la0=39.26,la1=39.965,lo0=2.34,lo1=3.48; const kx=Math.cos(39.6*Math.PI/180);
+  const s=Math.min((W-2*pad)/((lo1-lo0)*kx),(H-2*pad)/(la1-la0)); const ox=(W-(lo1-lo0)*kx*s)/2, oy=(H-(la1-la0)*s)/2;
+  return ([a,b])=>[ox+(b-lo0)*kx*s, oy+(la1-a)*s]; }
+function islandSVG(rides, W, H, frac, opts={}){
+  const P=islandProj(W,H,opts.pad||10);
+  const isl=ISLAND.map((q,i)=>(i?"L":"M")+P([q[1],q[0]]).map(v=>v.toFixed(1)).join(",")).join(" ")+" Z";
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${isl}" fill="rgba(244,239,230,.14)" stroke="rgba(244,239,230,.75)" stroke-width="${opts.iw||2.5}" stroke-linejoin="round"/>`;
+  for(const r of rides){ const d=r.p.map((q,i)=>(i?"L":"M")+P(q).map(v=>v.toFixed(1)).join(",")).join(" ");
+    s+=`<path d="${d}" fill="none" stroke="rgba(255,90,30,.35)" stroke-width="${(opts.w||4)+3}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s+=`<path d="${d}" fill="none" stroke="#FF5A1E" stroke-width="${opts.w||4}" stroke-linejoin="round" stroke-linecap="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="${(1-frac).toFixed(3)}"/>`;
+    if(frac<1&&opts.dot!==false){const i=Math.floor(frac*(r.p.length-1));const [x,y]=P(r.p[i]);s+=`<circle cx="${x}" cy="${y}" r="${(opts.w||4)*2}" fill="#F4EFE6"/>`}}
+  if(opts.label){ s+=`<text x="${W-8}" y="${H-10}" text-anchor="end" font-family="Archivo" font-weight="700" font-size="22" letter-spacing="4" fill="rgba(244,239,230,.8)">MALLORCA</text>`}
+  return s+"</svg>";
+}
+// --- elevation profile ---
+function profileSVG(key, W, H, frac, label){
+  const pts=STREAMS[key]; const kmMax=pts[pts.length-1][0]; const hMax=Math.max(...pts.map(p=>p[1]))*1.08;
+  const X=k=>14+(W-28)*k/kmMax, Y=h=>H-30-(H-70)*h/hMax;
+  const n=pts.length, upto=Math.max(1,Math.floor(frac*(n-1)));
+  const full=pts.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ");
+  const area=full+` L${X(kmMax).toFixed(1)},${H-30} L14,${H-30} Z`;
+  const done=pts.slice(0,upto+1).map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ");
+  const cur=pts[upto]; const cx=X(cur[0]), cy=Y(cur[1]);
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+   <path d="${area}" fill="rgba(244,239,230,.16)"/><path d="${full}" fill="none" stroke="rgba(244,239,230,.45)" stroke-width="3"/>
+   <path d="${done}" fill="none" stroke="#FF5A1E" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+   <line x1="14" y1="${H-30}" x2="${W-14}" y2="${H-30}" stroke="rgba(244,239,230,.5)" stroke-width="2"/>
+   <circle cx="${cx}" cy="${cy}" r="11" fill="#F4EFE6"/><circle cx="${cx}" cy="${cy}" r="20" fill="none" stroke="#F4EFE6" stroke-width="2" opacity=".6"/>
+   <text x="${clamp(cx,60,W-60)}" y="${cy-30}" text-anchor="middle" font-family="Anton" font-size="40" fill="#F4EFE6">${cur[1]} m</text>
+   <text x="14" y="${H-4}" font-family="Archivo" font-weight="700" font-size="22" letter-spacing="3" fill="rgba(244,239,230,.8)">0 KM</text>
+   <text x="${W-14}" y="${H-4}" text-anchor="end" font-family="Archivo" font-weight="700" font-size="22" letter-spacing="3" fill="rgba(244,239,230,.8)">${Math.round(kmMax)} KM</text>
+   <text x="14" y="26" font-family="Archivo" font-weight="700" font-size="22" letter-spacing="4" fill="#FF5A1E">${label||"ELEVATION"}</text></svg>`;
+  return s;
+}
+function flashAt(t){ for(const s of TL.scenes){ const dt=t-s.start; if(s.start>0&&dt>=0&&dt<0.12) return 1-dt/0.12 } return 0 }
+function popWords(str, t, t0, step=0.08){ return str.split(" ").map((w,i)=>{const a=clamp((t-t0-i*step)/0.18,0,1);const sc=0.6+0.4*ease(a);return `<span style="display:inline-block;opacity:${a};transform:scale(${sc})">${w}</span>`}).join(" "); }
+function slam(txt, t, t0, size, color, top){ const a=clamp((t-t0)/0.22,0,1); const sc=1.9-0.9*ease(a); const rot=(1-ease(a))*-4;
+  return `<div class="anton sh" style="position:absolute;left:0;right:0;top:${top}px;text-align:center;font-size:${size}px;color:${color};opacity:${a};transform:scale(${sc}) rotate(${rot}deg);transform-origin:center">${txt}</div>`; }
+function render(t, layer){
+  layer=layer||"front"; let hb="", hf=""; const S=document.getElementById("stage");
+  let h=""; // h collects FRONT by default; big elements are pushed to hb explicitly via back()
+  const back=x=>{hb+=x};
+  const inClose=t>=close.start, inHook=t<hook.end;
+  const scrimA=inClose?.5:(inHook?.45:.55);
+  back(`<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,${scrimA}) 0%,rgba(0,0,0,${inClose?.45:(inHook?.15:.3)}) 42%,rgba(0,0,0,${inClose?.35:(inHook?.15:0)}) 62%,rgba(0,0,0,${inClose?.6:.5}) 100%)"></div>`);
+  if(inHook){
+    const A=sc("hookA"),B=sc("hookB"),C=sc("hookC"),D=sc("hookD");
+    if(t<B.start){ back(slam("520 KM",t,A.start+0.05,300,"#F4EFE6",780)); h+=`<div class="lab sh" style="position:absolute;left:0;right:0;top:1080px;text-align:center;font-size:34px;opacity:${clamp((t-0.3)/0.2,0,1)}">in 6 days</div>`; }
+    else if(t<C.start){ back(slam("6,307 M",t,B.start+0.05,300,"#FF5A1E",780)); h+=`<div class="lab sh" style="position:absolute;left:0;right:0;top:1080px;text-align:center;font-size:34px;opacity:${clamp((t-B.start-0.3)/0.2,0,1)}">of climbing</div>`; }
+    else if(t<D.start){ back(slam("ONE ISLAND",t,C.start+0.05,230,"#F4EFE6",800)); }
+    else { const a=clamp((t-D.start)/0.35,0,1), c=clamp((t-D.start-0.5)/1.6,0,1);
+      h+=`<div style="position:absolute;left:70px;top:300px;opacity:${a}"><span class="pill">Hussain · Oct 20–25, 2026</span></div>`;
+      back(`<div class="anton sh" style="position:absolute;left:62px;top:380px;font-size:250px;opacity:${a};transform:translateY(${(1-ease(a))*40}px)">MALLORCA</div>`);
+      h+=`<div class="sh" style="position:absolute;left:70px;top:640px;font-size:40px;font-weight:500;letter-spacing:.04em;opacity:${a}">6 rides · 4 big climbs · 1 yellow bike</div>`;
+      h+=`<div class="ar sh" style="position:absolute;right:70px;left:70px;top:1440px;font-size:58px;text-align:right;line-height:1.5;opacity:${clamp((t-D.start-0.5)/0.4,0,1)}">${popWords("أسبوع واحد.. جزيرة واحدة.. ٥٢٠ كيلومتراً",t,D.start+0.5,0.09)}</div>`;
+    }
+  } else if(!inClose){
+    const d=days.find(d=>t>=d.t0&&t<d.t1); if(!d){S.innerHTML="";return}
+    const u=(t-d.t0)/(d.t1-d.t0), a=clamp((t-d.t0)/0.35,0,1), out=clamp((d.t1-t)/0.25,0,1), op=Math.min(a,out);
+    const rides=d.rides.map(i=>RIDES[i]); const big=d.title.length>12; const TOP=big?118:150;
+    const kmSoFar=days.filter(x=>x.n<d.n).reduce((s,x)=>s+x.km,0)+d.km*ease(clamp(u*1.2,0,1));
+    h+=`<div class="bar" style="left:70px;right:70px;top:262px"><i style="width:${(kmSoFar/TOT.km*100).toFixed(2)}%"></i></div>`;
+    h+=`<div class="lab sh" style="position:absolute;left:70px;top:282px;font-size:26px;opacity:.9">${fmt(kmSoFar)} / ${fmt(TOT.km)} km</div>`;
+    h+=`<div class="lab sh" style="position:absolute;right:70px;top:282px;font-size:26px;opacity:.9">Mallorca · Hussain</div>`;
+    const sc0=1.25-0.25*ease(a);
+    h+=`<div style="position:absolute;left:70px;top:350px;opacity:${op};transform:translateY(${(1-ease(a))*30}px)"><span class="pill">Day ${d.n} · ${d.date}</span></div>`;
+    back(`<div class="anton sh" style="position:absolute;left:70px;top:${350+62}px;font-size:${TOP}px;opacity:${op};transform:translateY(${(1-ease(a))*30}px) scale(${sc0});transform-origin:left top">${d.title}</div>`);
+    h+=`<div class="sh" style="position:absolute;left:70px;top:${350+62+TOP*0.95+14}px;font-size:34px;font-weight:500;letter-spacing:.04em;opacity:${op*.95};transform:translateY(${(1-ease(a))*30}px)">${d.sub}</div>`;
+    const c=ease(clamp((t-d.t0-0.3)/1.2,0,1));
+    const stats=[[fmt(d.km*c,1),"km"],[fmt(d.m*c),"m ↑"],[`${Math.floor(d.min/60)}h ${String(Math.round(d.min%60)).padStart(2,"0")}`,"moving"]];
+    h+=`<div style="position:absolute;left:70px;top:${big?700:740}px;display:flex;gap:46px;opacity:${op}">`+
+      stats.map(s=>`<div class="sh"><div class="anton" style="font-size:96px">${s[0]}</div><div class="lab" style="color:var(--orange);font-size:26px">${s[1]}</div></div>`).join("")+`</div>`;
+    const frac=ease(clamp(u*1.15,0,1)); const bandTop=big?900:940;
+    { const sid=TL.scenes.find(s=>s.start<=t&&t<s.end).id; const bx=BOXES[sid]; const MW=380,MH=250;
+      const cands=[{x:1080-70-MW,y:bandTop-10},{x:70,y:bandTop-10,needFree:!(d.climbs||d.fact)}];
+      const ovl=c=>{ if(!bx) return 0; const x0=Math.max(c.x,bx[0]*1080),y0=Math.max(c.y,bx[1]*1920),x1=Math.min(c.x+MW,bx[2]*1080),y1=Math.min(c.y+MH,bx[3]*1920); return Math.max(0,x1-x0)*Math.max(0,y1-y0)/(MW*MH) };
+      const slot=cands.find(c=>(c.needFree===undefined||c.needFree)&&ovl(c)<0.08);
+      if(slot) h+=`<div style="position:absolute;left:${slot.x}px;top:${slot.y}px;opacity:${op}">${islandSVG(rides,MW,MH,frac,{w:5,iw:2,label:true})}</div>`; }
+    let y=bandTop;
+    if(d.climbs){ d.climbs.forEach((cl,i)=>{const ca=clamp((t-d.t0-0.9-i*1.1)/0.4,0,1), fill=ease(clamp((t-d.t0-1.1-i*1.1)/1.3,0,1));
+      h+=`<div class="sh" style="position:absolute;left:70px;top:${y+i*150}px;width:540px;opacity:${Math.min(ca,out)};transform:translateX(${(1-ease(ca))*-30}px)">
+        <div class="lab" style="font-size:24px;color:var(--orange)">climb</div>
+        <div style="font-family:Archivo;font-weight:700;font-size:34px;margin:2px 0 8px;white-space:nowrap">${cl.name}</div>
+        <div class="bar" style="position:relative;width:540px"><i style="width:${(fill*100).toFixed(1)}%"></i></div>
+        <div class="anton" style="font-size:46px;margin-top:8px">${cl.km} km <span style="color:var(--orange)">·</span> ${cl.g}% <span style="color:var(--orange)">·</span> ${cl.min} min</div></div>`;}); y+=d.climbs.length*150; }
+    if(d.fact){ const ca=clamp((t-d.t0-0.9-(d.climbs?d.climbs.length*1.1:0))/0.4,0,1);
+      h+=`<div class="sh" style="position:absolute;left:70px;top:${y}px;opacity:${Math.min(ca,out)}"><div class="lab" style="font-size:24px;color:var(--orange)">${d.fact.l}</div><div class="anton" style="font-size:${d.climbs?84:130}px">${d.fact.v}<span style="font-size:${d.climbs?40:60}px;margin-left:10px">${d.fact.u}</span></div></div>`;}
+    if(d.prof){ const pa=clamp((t-d.t0-0.5)/0.4,0,1);
+      h+=`<div style="position:absolute;left:70px;top:1252px;opacity:${Math.min(pa,out)}">${profileSVG(d.prof,940,190,ease(clamp((u-0.1)/0.85,0,1)),"ELEVATION · "+d.title)}</div>`; }
+    h+=`<div class="ar sh" style="position:absolute;right:70px;left:70px;top:1450px;font-size:54px;text-align:right;line-height:1.5;opacity:${out}">${popWords(d.ar,t,d.t0+0.4,0.08)}</div>`;
+  } else { // CLOSING on the yellow-jersey photo
+    const u=(t-close.start)/close.dur, a=clamp((t-close.start)/0.4,0,1), c=ease(clamp((t-close.start-0.4)/2.0,0,1));
+    h+=`<div style="position:absolute;left:70px;top:300px;opacity:${a}"><span class="pill">Hussain · Mallorca · Oct 20–25, 2026</span></div>`;
+    back(`<div class="anton sh" style="position:absolute;left:66px;top:372px;font-size:110px;opacity:${a}">DONE.</div>`);
+    const rows=[[fmt(TOT.km*c,1),"km"],[fmt(TOT.m*c),"m climbed"],[TOT.h,"moving"],["6","ride days"]];
+    rows.forEach((r,i)=>{const ra=clamp((t-close.start-0.4-i*0.22)/0.3,0,1); const sc=1.3-0.3*ease(ra);
+      back(`<div class="sh" style="position:absolute;left:70px;top:${500+i*140}px;opacity:${ra};transform:scale(${sc});transform-origin:left top"><div class="anton" style="font-size:${i<2?116:88}px">${r[0]}</div></div>`);
+      h+=`<div class="lab sh" style="position:absolute;left:70px;top:${500+i*140+(i<2?110:84)}px;color:var(--orange);opacity:${ra}">${r[1]}</div>`;});
+    h+=`<div style="position:absolute;right:70px;top:390px;opacity:${clamp((t-close.start-0.8)/0.5,0,1)}">${islandSVG(RIDES,300,200,ease(clamp((t-close.start-0.8)/3.2,0,1)),{w:3.5,iw:2,dot:false,label:true})}</div>`;
+    const cta=clamp((t-close.start-3.2)/0.5,0,1);
+    h+=`<div style="position:absolute;left:70px;right:70px;top:1150px;opacity:${cta};transform:translateY(${(1-ease(cta))*20}px)">
+      <div class="lab sh" style="font-size:30px;color:var(--orange);letter-spacing:.26em">save this for your Mallorca trip ↗</div>
+      <div class="ar sh" style="font-size:60px;text-align:right;margin-top:24px;line-height:1.45">${popWords("احفظها لرحلتك القادمة إلى مايوركا",t,close.start+3.3,0.09)}</div>
+      <div class="ar sh" style="font-size:38px;text-align:right;margin-top:8px;opacity:.9;line-height:1.5">${popWords("أي تسلّق تبدأ فيه أول؟ سا كالوبرا ولا بويج مايور؟",t,close.start+4.2,0.07)}</div></div>`;
+    h+=`<div class="lab sh" style="position:absolute;left:70px;top:1560px;font-size:24px;opacity:${clamp((t-close.start-4.5)/0.5,0,1)*.9}">made with <span style="color:var(--orange)">activereel</span> · data from Strava</div>`;
+  }
+  const f=flashAt(t); if(f) h+=`<div class="flash" style="opacity:${(f*0.85).toFixed(3)}"></div>`;
+  S.innerHTML = layer==="back" ? hb : h;
+}
+window.render=render;
+</script></body></html>
