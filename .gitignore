@@ -12,3 +12,17 @@ sessions/
 !examples/**/*.jpg
 
 !docs/*.jpg
+
+# tour reels: media + build outputs stay local
+tours/*/media/
+tours/*/node_modules/
+tours/*/seg2/
+tours/*/masks/
+tours/*/frames3/
+tours/*/stills3/
+tours/*/*.mp4
+tours/*/*.wav
+tours/*/*.built.html
+tours/*/timeline2.json
+tours/*/person_boxes.json
+tours/*/.venv/

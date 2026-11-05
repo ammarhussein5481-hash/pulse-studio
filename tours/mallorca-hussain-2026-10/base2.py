@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""v2 base cut: faster pacing, speed-ramped 4K clips, yellow-jersey photo as closing. Writes timeline2.json + base2.mp4"""
+import json, subprocess, os, sys
+SRC = os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "media"))
+OUT = os.path.join(os.path.dirname(__file__), "seg2"); os.makedirs(OUT, exist_ok=True)
+FPS = 30
+# (id, file, kind, in, dur(out), motion/speed)
+SCENES = [
+  ("hookA", "IMG_0844.MOV",     "l",  20.0, 1.3, 1.5),
+  ("hookB", "IMG_0909.JPG.jpeg","pl", 0,    1.2, "zin"),
+  ("hookC", "IMG_0787.MP4",     "v",  4.0,  1.2, 1.0),
+  ("hookD", "IMG_0802.JPG.jpeg","pv", 0,    2.8, "zout"),
+  ("d1a",   "IMG_0764.jpg",     "pv", 0,    2.6, "zin"),
+  ("d1b",   "IMG_0823.jpg",     "pv", 0,    2.6, "zout"),
+  ("d2a",   "IMG_0909.JPG.jpeg","pl", 0,    4.2, "panR"),
+  ("d2b",   "IMG_0853.JPG.jpeg","pl", 0,    3.0, "panL"),
+  ("d2c",   "IMG_0787.MP4",     "v",  6.5,  2.6, 1.0),
+  ("d3a",   "IMG_0813.MOV",     "l",  2.0,  3.2, 1.3),
+  ("d3b",   "IMG_0815.MP4",     "v",  3.0,  3.2, 1.0),
+  ("d4a",   "IMG_0844.MOV",     "l",  4.0,  5.0, 1.25),
+  ("d4b",   "IMG_0851.JPG.jpeg","pl", 0,    3.2, "panR"),
+  ("d4c",   "IMG_0854.JPG.jpeg","pl", 0,    2.0, "zin"),
+  ("d4d",   "IMG_0855.JPG.jpeg","pl", 0,    2.0, "zin"),
+  ("d5a",   "IMG_0868.MP4",     "v",  2.0,  3.6, 1.0),
+  ("d5b",   "IMG_0873.JPG.jpeg","pv", 0,    3.6, "zin"),
+  ("d6",    "IMG_0844.MOV",     "l",  26.0, 3.2, 1.5),
+  ("close", "IMG_0880.JPG.jpeg","pv", 0,    9.5, "zin"),
+]
+def run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode: print(r.stderr[-2000:]); sys.exit(1)
+tl = []; t = 0.0
+for sid, f, kind, inp, dur, mo in SCENES:
+    src = os.path.join(SRC, f); out = os.path.join(OUT, sid + ".mp4"); n = int(round(dur * FPS))
+    if kind in ("v", "l"):
+        sp = float(mo); srcdur = dur * sp
+        vf = ("crop=ih*9/16:ih," if kind == "l" else "") + f"setpts=PTS/{sp},scale=1080:1920:flags=lanczos,fps=30,setsar=1"
+        af = f"atempo={sp}," if sp != 1 else ""
+        cmd = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-ss", str(inp), "-t", str(srcdur + 0.2), "-i", src,
+               "-vf", vf, "-af", af + "volume=-10dB,aresample=48000", "-ac", "2", "-ar", "48000", "-t", str(dur),
+               "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", out]
+    else:
+        if kind == "pv": pre = "scale=1296:2304:force_original_aspect_ratio=increase,crop=1296:2304"
+        else: pre = "scale=-2:2304"
+        if mo == "zin": z = f"1+0.12*on/{n}"; x = "(iw-iw/zoom)/2"; y = "(ih-ih/zoom)/2"
+        elif mo == "zout": z = f"1.12-0.12*on/{n}"; x = "(iw-iw/zoom)/2"; y = "(ih-ih/zoom)/2"
+        elif mo == "panR": z = "1.0"; x = f"(iw-1296)*on/{n}"; y = "0"
+        else: z = "1.0"; x = f"(iw-1296)*(1-on/{n})"; y = "0"
+        vf = f"{pre},zoompan=z='{z}':x='{x}':y='{y}':d={n}:s=1296x2304:fps={FPS},scale=1080:1920:flags=lanczos,setsar=1"
+        cmd = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-loop", "1", "-t", str(dur), "-i", src,
+               "-f", "lavfi", "-t", str(dur), "-i", "anullsrc=r=48000:cl=stereo",
+               "-vf", vf, "-frames:v", str(n), "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p",
+               "-c:a", "aac", "-b:a", "160k", "-shortest", out]
+    print(sid, f, dur, flush=True); run(cmd)
+    tl.append({"id": sid, "src": f, "start": round(t, 3), "end": round(t + dur, 3), "dur": dur}); t += dur
+with open(os.path.join(OUT, "list.txt"), "w") as fh:
+    for s in tl: fh.write(f"file '{os.path.join(OUT, s['id'])}.mp4'\n")
+run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", os.path.join(OUT, "list.txt"), "-c", "copy", os.path.join(os.path.dirname(__file__), "base2.mp4")])
+json.dump({"fps": FPS, "total": round(t, 3), "scenes": tl}, open(os.path.join(os.path.dirname(__file__), "timeline2.json"), "w"), indent=1)
+print("total", t)
