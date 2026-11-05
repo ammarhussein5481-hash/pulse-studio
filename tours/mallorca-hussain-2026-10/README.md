@@ -7,7 +7,7 @@ ffmpeg ≥ 6, node ≥ 18, python3 ≥ 3.10. Internet on first run only (npm fon
 
 ## Run
 1. Unzip `HUSSAIN.zip` → put all 16 files in `./media/`
-2. `./run.sh` (uses the Pulse Studio venv at ~/.pulse-studio/venv, or creates ./.venv)  → `hussain_mallorca_draft_v3.mp4` (60 s, 1080×1920, 30 fps, no music — add in Instagram)
+2. `./run.sh` (uses the Pulse Studio venv at ~/.pulse-studio/venv, or creates ./.venv)  → `hussain_mallorca_draft_v4.mp4` (~81 s, 1080×1920, 30 fps, no music — add in Instagram)
 
 Steps can be re-run individually (see run.sh). After editing text/layout in `ov3.html`, only `node frames3.mjs all && bash comp3.sh` is needed (masks and base are reused).
 QA a single moment without rendering everything: `node frames3.mjs stills 12,30,57` → `stills3/`.

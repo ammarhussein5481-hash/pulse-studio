@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""v2 base cut: faster pacing, speed-ramped 4K clips, yellow-jersey photo as closing. Writes timeline2.json + base2.mp4"""
+"""v4 base cut: real-speed clips (no speed ramps), longer scenes (~81 s), yellow-jersey photo as closing. Writes timeline2.json + base2.mp4"""
 import json, subprocess, os, sys
 SRC = os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "media"))
 OUT = os.path.join(os.path.dirname(__file__), "seg2"); os.makedirs(OUT, exist_ok=True)
 FPS = 30
 # (id, file, kind, in, dur(out), motion/speed)
 SCENES = [
-  ("hookA", "IMG_0844.MOV",     "l",  20.0, 1.3, 1.5),
-  ("hookB", "IMG_0909.JPG.jpeg","pl", 0,    1.2, "zin"),
-  ("hookC", "IMG_0787.MP4",     "v",  4.0,  1.2, 1.0),
-  ("hookD", "IMG_0802.JPG.jpeg","pv", 0,    2.8, "zout"),
-  ("d1a",   "IMG_0764.jpg",     "pv", 0,    2.6, "zin"),
-  ("d1b",   "IMG_0823.jpg",     "pv", 0,    2.6, "zout"),
-  ("d2a",   "IMG_0909.JPG.jpeg","pl", 0,    4.2, "panR"),
-  ("d2b",   "IMG_0853.JPG.jpeg","pl", 0,    3.0, "panL"),
-  ("d2c",   "IMG_0787.MP4",     "v",  6.5,  2.6, 1.0),
-  ("d3a",   "IMG_0813.MOV",     "l",  2.0,  3.2, 1.3),
-  ("d3b",   "IMG_0815.MP4",     "v",  3.0,  3.2, 1.0),
-  ("d4a",   "IMG_0844.MOV",     "l",  4.0,  5.0, 1.25),
-  ("d4b",   "IMG_0851.JPG.jpeg","pl", 0,    3.2, "panR"),
-  ("d4c",   "IMG_0854.JPG.jpeg","pl", 0,    2.0, "zin"),
-  ("d4d",   "IMG_0855.JPG.jpeg","pl", 0,    2.0, "zin"),
-  ("d5a",   "IMG_0868.MP4",     "v",  2.0,  3.6, 1.0),
-  ("d5b",   "IMG_0873.JPG.jpeg","pv", 0,    3.6, "zin"),
-  ("d6",    "IMG_0844.MOV",     "l",  26.0, 3.2, 1.5),
-  ("close", "IMG_0880.JPG.jpeg","pv", 0,    9.5, "zin"),
+  ("hookA", "IMG_0844.MOV",     "l",  20.0, 1.8, 1.0),
+  ("hookB", "IMG_0909.JPG.jpeg","pl", 0,    1.6, "zin"),
+  ("hookC", "IMG_0787.MP4",     "v",  4.0,  1.6, 1.0),
+  ("hookD", "IMG_0802.JPG.jpeg","pv", 0,    3.5, "zout"),
+  ("d1a",   "IMG_0764.jpg",     "pv", 0,    3.5, "zin"),
+  ("d1b",   "IMG_0823.jpg",     "pv", 0,    3.5, "zout"),
+  ("d2a",   "IMG_0909.JPG.jpeg","pl", 0,    5.5, "panR"),
+  ("d2b",   "IMG_0853.JPG.jpeg","pl", 0,    4.0, "panL"),
+  ("d2c",   "IMG_0787.MP4",     "v",  6.5,  4.0, 1.0),
+  ("d3a",   "IMG_0813.MOV",     "l",  2.0,  5.0, 1.0),
+  ("d3b",   "IMG_0815.MP4",     "v",  3.0,  5.0, 1.0),
+  ("d4a",   "IMG_0844.MOV",     "l",  4.0,  8.0, 1.0),
+  ("d4b",   "IMG_0851.JPG.jpeg","pl", 0,    4.0, "panR"),
+  ("d4c",   "IMG_0854.JPG.jpeg","pl", 0,    2.8, "zin"),
+  ("d4d",   "IMG_0855.JPG.jpeg","pl", 0,    2.8, "zin"),
+  ("d5a",   "IMG_0868.MP4",     "v",  2.0,  5.0, 1.0),
+  ("d5b",   "IMG_0873.JPG.jpeg","pv", 0,    4.5, "zin"),
+  ("d6",    "IMG_0844.MOV",     "l",  26.0, 5.0, 1.0),
+  ("close", "IMG_0880.JPG.jpeg","pv", 0,   10.0, "zin"),
 ]
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)

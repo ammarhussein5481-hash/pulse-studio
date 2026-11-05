@@ -15,6 +15,12 @@ def predict(bgr):
     p = (p - p.min()) / (p.max() - p.min() + 1e-6)
     m = cv2.resize(p, (bgr.shape[1], bgr.shape[0]), interpolation=cv2.INTER_LINEAR)
     m = np.clip((m - 0.35) / 0.3, 0, 1)  # soft threshold
+    # drop blobs that touch the top edge (cliffs, ceilings, trees) or cover >45% of the frame — a rider never does
+    bw = (m > 0.5).astype(np.uint8); n, lab, stats, _ = cv2.connectedComponentsWithStats(bw, 8)
+    H, W = bw.shape
+    for k in range(1, n):
+        x, y, w, hh, area = stats[k]
+        if y == 0 or area > 0.45 * H * W: m[lab == k] = 0
     m = cv2.GaussianBlur(m, (0, 0), 2.5)
     return (m * 255).astype(np.uint8)
 W, H = 1080, 1920; FPS = tl["fps"]; N = round(tl["total"] * FPS)
