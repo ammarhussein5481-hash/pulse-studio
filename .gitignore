@@ -25,3 +25,4 @@ tours/*/*.wav
 tours/*/*.built.html
 tours/*/timeline2.json
 tours/*/person_boxes.json
+tours/*/.venv/
