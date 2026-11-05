@@ -16,5 +16,5 @@ npx playwright install chromium >/dev/null 2>&1 || true
 "$PY" masks.py            # rider masks → masks/ + person_boxes.json  (slowest step; scales with cores)
 "$PY" sfx2.py             # whoosh / hits / ticks → sfx2.wav
 node frames3.mjs all      # overlay frames, back + front layers → frames3/
-bash comp3.sh             # composite → hussain_mallorca_draft_v4.mp4
-echo "done → $(pwd)/hussain_mallorca_draft_v4.mp4"
+bash comp3.sh             # composite → hussain_mallorca_draft_v5.mp4
+echo "done → $(pwd)/hussain_mallorca_draft_v5.mp4"

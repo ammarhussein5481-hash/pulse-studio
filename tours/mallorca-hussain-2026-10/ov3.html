@@ -148,7 +148,7 @@ function render(t, layer){
       <div class="ar sh" style="font-size:38px;text-align:right;margin-top:8px;opacity:.9;line-height:1.5">${popWords("أي تسلّق تبدأ فيه أول؟ سا كالوبرا ولا بويج مايور؟",t,close.start+4.2,0.07)}</div></div>`;
     h+=`<div class="lab sh" style="position:absolute;left:70px;top:1560px;font-size:24px;opacity:${clamp((t-close.start-4.5)/0.5,0,1)*.9}">made with <span style="color:var(--orange)">activereel</span> · data from Strava</div>`;
   }
-  const f=flashAt(t); if(f) h+=`<div class="flash" style="opacity:${(f*0.85).toFixed(3)}"></div>`;
+  // no white flash on cuts: 18 near-white frames read as strobing (the whoosh SFX marks the cut)
   S.innerHTML = layer==="back" ? hb : h;
 }
 window.render=render;

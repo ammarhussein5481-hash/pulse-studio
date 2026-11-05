@@ -7,14 +7,14 @@ ffmpeg ≥ 6, node ≥ 18, python3 ≥ 3.10. Internet on first run only (npm fon
 
 ## Run
 1. Unzip `HUSSAIN.zip` → put all 16 files in `./media/`
-2. `./run.sh` (uses the Pulse Studio venv at ~/.pulse-studio/venv, or creates ./.venv)  → `hussain_mallorca_draft_v4.mp4` (~81 s, 1080×1920, 30 fps, no music — add in Instagram)
+2. `./run.sh` (uses the Pulse Studio venv at ~/.pulse-studio/venv, or creates ./.venv)  → `hussain_mallorca_draft_v5.mp4` (~81 s, 1080×1920, 30 fps, no music — add in Instagram)
 
 Steps can be re-run individually (see run.sh). After editing text/layout in `ov3.html`, only `node frames3.mjs all && bash comp3.sh` is needed (masks and base are reused).
 QA a single moment without rendering everything: `node frames3.mjs stills 12,30,57` → `stills3/`.
 
 ## What each file does
-- `base2.py` — scene list (clip, in-point, duration, speed/Ken-Burns) → `base2.mp4`, `timeline2.json`. Edit SCENES to re-cut.
-- `masks.py` — u2net person segmentation per frame → `masks/`, `person_boxes.json` (used to keep maps off the rider).
+- `base2.py` — scene list (clip, in-point, duration, speed/Ken-Burns) → `base2.mp4`, `timeline2.json`. Edit SCENES to re-cut. Photos are rendered with a sub-pixel Ken Burns in Python (ffmpeg's zoompan rounded to whole pixels — shimmer — and squashed landscape photos).
+- `masks.py` — u2net rider masks → `masks/`, `person_boxes.json` (used to keep maps off the rider). Photos: one mask moved with the photo's own Ken Burns (no jitter). Clips: 5-frame temporal median; a clip where the rider can't be tracked steadily gets no cut-out (text on top) instead of flickering. `REUSE=1` keeps the raw clip masks in `masks/raw/` and only redoes the smoothing.
 - `ov3.html` — the overlay. `render(t, "back"|"front")`: back = hook slams, MALLORCA, day titles, closing totals (behind the rider); front = labels, stats, climb cards, elevation profiles, island map, Arabic captions, CTA. Day text/captions are in the `days` array at the top.
 - `frames3.mjs` — Playwright renderer → `frames3/b_*.png` (back) and `f_*.png` (front).
 - `sfx2.py` — numpy sound design (whoosh on cuts, hits on slams, ticks on count-ups) → `sfx2.wav`.
